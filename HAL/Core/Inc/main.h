@@ -60,6 +60,7 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define SW1_Pin GPIO_PIN_4
 #define SW1_GPIO_Port GPIOC
+#define SW1_EXTI_IRQn EXTI4_IRQn
 #define LED_GREEN_Pin GPIO_PIN_0
 #define LED_GREEN_GPIO_Port GPIOB
 #define LED_RED_Pin GPIO_PIN_1
