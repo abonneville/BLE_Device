@@ -20,6 +20,8 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "app_entry.h"
+#include "app_common.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -97,9 +99,11 @@ int main(void)
 
   /* USER CODE END 2 */
 
+  /* Init code for STM32_WPAN */  
+  APPE_Init();
+
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  StartApplication();
   while (1)
   {
     /* USER CODE END WHILE */
@@ -212,8 +216,8 @@ static void MX_RTC_Init(void)
   */
   hrtc.Instance = RTC;
   hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
-  hrtc.Init.AsynchPrediv = 127;
-  hrtc.Init.SynchPrediv = 255;
+  hrtc.Init.AsynchPrediv = CFG_RTC_ASYNCH_PRESCALER;
+  hrtc.Init.SynchPrediv = CFG_RTC_SYNCH_PRESCALER;
   if (HAL_RTC_Init(&hrtc) != HAL_OK)
   {
     Error_Handler();
