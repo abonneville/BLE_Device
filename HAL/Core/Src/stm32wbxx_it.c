@@ -23,6 +23,7 @@
 #include "stm32wbxx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "hw.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -226,6 +227,18 @@ void EXTI4_IRQHandler(void)
 }
 
 /* USER CODE BEGIN 1 */
+
+
+
+void IPCC_C1_TX_IRQHandler(void)
+{
+  HW_IPCC_Tx_Handler();
+}
+
+void IPCC_C1_RX_IRQHandler(void)
+{
+  HW_IPCC_Rx_Handler();
+}
 
 /* USER CODE END 1 */
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

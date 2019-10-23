@@ -24,6 +24,7 @@ extern "C" {
 #include <stdint.h>
 #include "stm32wbxx_hal.h"
 #include "main.h"
+#include "stm32_seq.h"
 }
 
 /* Typedef -----------------------------------------------------------*/
@@ -42,13 +43,16 @@ extern "C" void StartApplication()
 {
 	while(1)
 	{
+	    UTIL_SEQ_Run( UTIL_SEQ_DEFAULT );
 
+	    /*
 		  HAL_GPIO_TogglePin(GPIOB, LED_BLUE_Pin);
 		  HAL_Delay(200);
 		  HAL_GPIO_TogglePin(GPIOB, LED_GREEN_Pin);
 		  HAL_Delay(200);
 		  HAL_GPIO_TogglePin(GPIOB, LED_RED_Pin);
 		  HAL_Delay(200);
+		  */
 	}
 }
 
