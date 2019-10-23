@@ -25,7 +25,10 @@ extern "C" {
 #include "stm32wbxx_hal.h"
 #include "main.h"
 #include "stm32_seq.h"
+#include "core_cm4.h"
 }
+#include <stdio.h>
+#include <errno.h>
 
 /* Typedef -----------------------------------------------------------*/
 
@@ -41,6 +44,8 @@ extern "C" {
 
 extern "C" void StartApplication()
 {
+	printf("\r\n [%s][%s][%d] \r\n",__FILE__,__FUNCTION__,__LINE__);
+
 	while(1)
 	{
 	    UTIL_SEQ_Run( UTIL_SEQ_DEFAULT );
@@ -56,3 +61,53 @@ extern "C" void StartApplication()
 	}
 }
 
+
+/**
+ * Temporary location until HAL extension layer is to be ported/implemented.
+ */
+
+/**
+ * @brief Redirects stdout to the JTAG serial wire viewer (SWV)
+ * @param fd, not used. File/device ID (stdout = 0)
+ * @param buffer is data to be sent out
+ * @param len is how many bytes to be sent out
+ * @retval number of bytes sent
+ */
+extern "C" int _write(int fd, char *ptr, int len)
+{
+	int DataIdx;
+
+	for (DataIdx = 0; DataIdx < len; DataIdx++)
+	{
+		ITM_SendChar(*ptr++);
+	}
+	return len;
+}
+
+
+/**
+ _sbrk
+ Increase program data space. Malloc and related functions depend on this
+**/
+extern "C" caddr_t _sbrk(int incr)
+{
+	extern char end asm("end");
+	extern char _end asm("_end");
+	const char * const heap_limit =&_end;
+	static char *heap_end;
+	char *prev_heap_end;
+
+	if (heap_end == 0)
+		heap_end = &end;
+
+	prev_heap_end = heap_end;
+	if (heap_end + incr > heap_limit)
+	{
+		errno = ENOMEM;
+		return (caddr_t) -1;
+	}
+
+	heap_end += incr;
+
+	return (caddr_t) prev_heap_end;
+}

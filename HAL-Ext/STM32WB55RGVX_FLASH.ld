@@ -52,7 +52,7 @@
 /* Entry Point */
 ENTRY(Reset_Handler)
 
-_Min_Heap_Size = 0x400;	/* required amount of heap  */
+_Min_Heap_Size = 0x1000;	/* required amount of heap  */
 _Min_Stack_Size = 0x1000;	/* required amount of stack */
 
 /* Memories definition */
@@ -198,8 +198,8 @@ SECTIONS
   {
     . = ALIGN(8);
     PROVIDE ( end = . );
-    PROVIDE ( _end = . );
     . = . + _Min_Heap_Size;
+    PROVIDE ( _end = . );
     . = ALIGN(8);
   } >SRAM1
 

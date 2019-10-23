@@ -38,11 +38,11 @@ extern "C"
 #define PRINT_MESG_DBG          printf
 #endif
 #else
-#define PRINT_LOG_BUFF_DBG(...)
-#define PRINT_MESG_DBG(...)
+#define PRINT_LOG_BUFF_DBG printf
+#define PRINT_MESG_DBG printf
 #endif
 
-#define PRINT_NO_MESG(...)
+#define PRINT_NO_MESG printf
 
 /* Exported functions ------------------------------------------------------- */
 
