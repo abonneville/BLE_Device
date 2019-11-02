@@ -3,6 +3,7 @@
 	<name>HAL-Ext</name>
 	<comment></comment>
 	<projects>
+		<project>BLE</project>
 		<project>HAL</project>
 	</projects>
 	<buildSpec>
