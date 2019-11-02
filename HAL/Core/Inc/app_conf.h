@@ -40,10 +40,8 @@
  * Define Advertising parameters
  */
 #define CFG_ADV_BD_ADDRESS                (0x7257acd87a6c)
-#define CFG_FAST_CONN_ADV_INTERVAL_MIN    (0x80)   /**< 80ms */
-#define CFG_FAST_CONN_ADV_INTERVAL_MAX    (0xa0)  /**< 100ms */
-#define CFG_LP_CONN_ADV_INTERVAL_MIN      (0x640) /**< 1s */
-#define CFG_LP_CONN_ADV_INTERVAL_MAX      (0xfa0) /**< 2.5s */
+#define LEDBUTTON_CONN_ADV_INTERVAL_MIN  (0x1FA)
+#define LEDBUTTON_CONN_ADV_INTERVAL_MAX  (0x3E8)
 
 /**
  * Define IO Authentication
@@ -101,14 +99,10 @@
 /**< specific parameters */
 /*****************************************************/
 #define PUSH_BUTTON_SW1_EXTI_IRQHandler                         EXTI4_IRQHandler
-#define PUSH_BUTTON_SW2_EXTI_IRQHandler                         EXTI0_IRQHandler
 
-#define P2P_SERVER1    1    /*1 = Device is Peripherique*/
-#define P2P_SERVER2    0
-#define P2P_SERVER3    0
-#define P2P_SERVER4    0
-#define P2P_SERVER5    0
-#define P2P_SERVER6    0
+#define BLE_CLI_LED_BUTTON                1 /**< LED BUTTON CLIENT */
+#define CFG_MAX_CONNECTION                8
+#define UUID_128BIT_FORMAT                1    
 
 #define CFG_DEV_ID_P2P_SERVER1                  (0x83)
 #define CFG_DEV_ID_P2P_SERVER2                  (0x84)
@@ -118,27 +112,18 @@
 #define CFG_DEV_ID_P2P_SERVER6                  (0x8A)   
 #define CFG_DEV_ID_P2P_ROUTER                   (0x85)
 
-#define  RADIO_ACTIVITY_EVENT   1          /* 1 for OOB Demo */
-
-/**
-* AD Element - Group B Feature
-*/ 
-/* LSB - First Byte */
-#define CFG_FEATURE_THREAD_SWITCH               (0x40)
-
-/* LSB - Second Byte */
-#define CFG_FEATURE_OTA_REBOOT                  (0x20)
+#define CFG_P2P_DEMO_MULTI                      1
+   
 
 #define CONN_L(x) ((int)((x)/0.625f))
 #define CONN_P(x) ((int)((x)/1.25f))
-
-  /*  L2CAP Connection Update request parameters used for test only with smart Phone */
-#define L2CAP_REQUEST_NEW_CONN_PARAM             0
-
-#define L2CAP_INTERVAL_MIN              CONN_P(1000) /* 1s */
-#define L2CAP_INTERVAL_MAX              CONN_P(1000) /* 1s */
-#define L2CAP_SLAVE_LATENCY             0x0000
-#define L2CAP_TIMEOUT_MULTIPLIER        0x1F4
+#define SCAN_P (0x320)
+#define SCAN_L (0x640)
+#define CONN_P1		(CONN_P(200)) 
+#define CONN_P2		(CONN_P(1000)) 
+#define SUPERV_TIMEOUT (400)
+#define CONN_L1   (CONN_L(10))
+#define CONN_L2   (CONN_L(10))
 
 /******************************************************************************
  * BLE Stack
@@ -480,8 +465,15 @@ typedef enum
 /**< Add in that list all tasks that may send a ACI/HCI command */
 typedef enum
 {
-    CFG_TASK_ADV_CANCEL_ID,
-    CFG_TASK_SW1_BUTTON_PUSHED_ID,
+    CFG_TASK_START_ADV_ID,
+    CFG_TASK_START_SCAN_ID,
+    CFG_TASK_CONN_DEV_1_ID,
+    CFG_TASK_CONN_DEV_2_ID,
+    CFG_TASK_CONN_DEV_3_ID,
+    CFG_TASK_CONN_DEV_4_ID,
+    CFG_TASK_CONN_DEV_5_ID,
+    CFG_TASK_CONN_DEV_6_ID,
+    CFG_TASK_SEARCH_SERVICE_ID,
     CFG_TASK_HCI_ASYNCH_EVT_ID,
 /* USER CODE BEGIN CFG_Task_Id_With_HCI_Cmd_t */
 

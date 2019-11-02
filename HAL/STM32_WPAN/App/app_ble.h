@@ -37,17 +37,44 @@ extern "C" {
 
 /* Exported types ------------------------------------------------------------*/
 
-    typedef enum
+  typedef enum
     {
       APP_BLE_IDLE,
       APP_BLE_FAST_ADV,
       APP_BLE_LP_ADV,
       APP_BLE_SCAN,
-      APP_BLE_LP_CONNECTING,
-      APP_BLE_CONNECTED_SERVER,
-      APP_BLE_CONNECTED_CLIENT
-    } APP_BLE_ConnStatus_t;
-    
+      APP_BLE_CONNECTING,
+      APP_BLE_CONNECTED,
+       
+      APP_BLE_DISCOVER_SERVICES,
+      APP_BLE_DISCOVER_CHARACS,
+      APP_BLE_DISCOVER_LED_CHAR_DESC,
+      APP_BLE_DISCOVER_BUTTON_CHAR_DESC,
+      APP_BLE_DISCOVER_NOTIFICATION_CHAR_DESC,
+      APP_BLE_ENABLE_NOTIFICATION_BUTTON_DESC,
+      APP_BLE_DISABLE_NOTIFICATION_TX_DESC
+    } APP_BLE_ConnStatus_t;  
+
+typedef enum
+{
+  P2P_START_TIMER_EVT,
+  P2P_STOP_TIMER_EVT,
+  P2P_BUTTON_INFO_RECEIVED_EVT,
+} P2P_Client_Opcode_Notification_evt_t;
+
+typedef struct
+{
+  uint8_t * pPayload;
+  uint8_t     Length;
+}P2P_Client_Data_t;  
+
+typedef struct
+{
+  P2P_Client_Opcode_Notification_evt_t  P2P_Client_Evt_Opcode;
+  P2P_Client_Data_t DataTransfered;
+  uint8_t   ServiceInstance;
+}P2P_Client_App_Notification_evt_t;
+
 /* USER CODE BEGIN ET */
 
 /* USER CODE END ET */  
@@ -70,7 +97,7 @@ extern "C" {
 /* Exported functions ---------------------------------------------*/
   void APP_BLE_Init( void ); 
 
-  APP_BLE_ConnStatus_t APP_BLE_Get_Server_Connection_Status(void);
+  APP_BLE_ConnStatus_t APP_BLE_Get_Client_Connection_Status( uint16_t Connection_Handle );
 
 /* USER CODE BEGIN EF */
 

@@ -1,8 +1,8 @@
-/* USER CODE BEGIN */
+/* USER CODE BEGIN Header */
 /**
  ******************************************************************************
- * File Name          : App/p2p_server_app.h
- * Description        : Header for p2p_server_app.c module
+ * File Name          : App/p2p_routeur_app.h
+ * Description        : Header for P2P router application module
  ******************************************************************************
   * @attention
   *
@@ -19,8 +19,8 @@
 /* USER CODE END Header */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __P2P_SERVER_APP_H
-#define __P2P_SERVER_APP_H
+#ifndef __P2P_ROUTEUR_APP_H
+#define __P2P_ROUTEUR_APP_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,18 +34,14 @@ extern "C" {
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
-typedef enum
-{
-  PEER_CONN_HANDLE_EVT,
-  PEER_DISCON_HANDLE_EVT,
-} P2PS_APP__Opcode_Notification_evt_t;
-
 typedef struct
 {
-  P2PS_APP__Opcode_Notification_evt_t   P2P_Evt_Opcode;
-  uint16_t                              ConnectionHandle;
-}P2PS_APP_ConnHandle_Not_evt_t;
-/* USER CODE BEGIN ET */
+    uint8_t     Device1_Status;
+/* USER CODE BEGIN P2PR_APP_Device_Status_t_Multidevice */
+ 
+/* USER CODE END P2PR_APP_Device_Status_t_Multidevice */
+ }P2PR_APP_Device_Status_t;
+ /* USER CODE BEGIN ET */
  
 /* USER CODE END ET */
 
@@ -65,8 +61,8 @@ typedef struct
 /* USER CODE END EM */
 
 /* Exported functions ---------------------------------------------*/
-  void P2PS_APP_Init( void );
-  void P2PS_APP_Notification( P2PS_APP_ConnHandle_Not_evt_t *pNotification );
+void P2PR_APP_Init( void );
+void P2PR_APP_End_Device_Mgt_Connection_Update( P2PR_APP_Device_Status_t *p_device_status );
 /* USER CODE BEGIN EF */
  
 /* USER CODE END EF */
@@ -75,6 +71,6 @@ typedef struct
 }
 #endif
 
-#endif /*__P2P_SERVER_APP_H */
+#endif /*__P2P_ROUTEUR_APP_H */
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
