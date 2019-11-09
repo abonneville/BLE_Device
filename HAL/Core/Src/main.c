@@ -88,16 +88,16 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-//  Reset_Device();
-//  Config_HSE();
+  Reset_Device();
+  Config_HSE();
   /* USER CODE END Init */
 
   /* Configure the system clock */
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-//  PeriphClock_Config();
-//  Init_Exti(); /**< Configure the system Power Mode */
+  PeriphClock_Config();
+  Init_Exti(); /**< Configure the system Power Mode */
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -340,6 +340,9 @@ void PeriphClock_Config(void)
  *
  *************************************************************/
 
+/**
+ * @brief HSE tuning, apply factory calibration value stored in OTP
+ */
 static void Config_HSE(void)
 {
     OTP_ID0_t * p_otp;

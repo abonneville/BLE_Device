@@ -197,7 +197,7 @@ void SysTick_Handler(void)
 /* For the available peripheral interrupt handler names,                      */
 /* please refer to the startup file (startup_stm32wbxx.s).                    */
 /******************************************************************************/
-
+#if 0
 /**
   * @brief This function handles RTC wake-up interrupt through EXTI line 19.
   */
@@ -211,7 +211,7 @@ void RTC_WKUP_IRQHandler(void)
 
   /* USER CODE END RTC_WKUP_IRQn 1 */
 }
-
+#endif
 /**
   * @brief This function handles EXTI line4 interrupt.
   */
@@ -227,6 +227,12 @@ void EXTI4_IRQHandler(void)
 }
 
 /* USER CODE BEGIN 1 */
+
+
+void RTC_WKUP_IRQHandler(void)
+{
+	HW_TS_RTC_Wakeup_Handler();
+}
 
 
 
