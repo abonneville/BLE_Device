@@ -38,32 +38,42 @@ extern "C" {
 
 /* Macro -------------------------------------------------------------*/
 
+#define PRINT_MESG_DBG(...)     do{printf("\r\nInfo: "); printf(__VA_ARGS__);printf(" [%s][%s][%d] ", __FILE__, __FUNCTION__,__LINE__);}while(0);
+
+
 /* Variables ---------------------------------------------------------*/
 ble::EffectiveBLE bleDevice("Effective", 200);
 
+ble::Uuid128 ServiceUuid {0x00,0x00,0xfe,0x40,0xcc,0x7a,0x48,0x2a,0x98,0x4a,0x7f,0x2e,0xd5,0xb3,0xe5,0x8f};
+ble::Uuid128 LedCharUuid {0x00,0x00,0xfe,0x41,0x8e,0x22,0x45,0x41,0x9d,0x4c,0x21,0xed,0xae,0x82,0xed,0x19};
+ble::Uuid128 ButCharUuid {0x00,0x00,0xfe,0x42,0x8e,0x22,0x45,0x41,0x9d,0x4c,0x21,0xed,0xae,0x82,0xed,0x19};
 
 /* Function prototypes -----------------------------------------------*/
 
 /* External functions ------------------------------------------------*/
 
+static void LedCallback(uint16_t fromClient);
+
+/* Define control/status variables */
+auto button ( bleDevice.addChar<uint16_t>(0xBB, ServiceUuid, ButCharUuid) );
+auto led ( bleDevice.addChar<uint16_t>(0xEE, ServiceUuid,  LedCharUuid, LedCallback) );
+
+static void LedCallback(uint16_t fromClient)
+{
+	  HAL_GPIO_TogglePin(GPIOB, LED_BLUE_Pin);
+
+	  button = fromClient + 1;
+}
+
+
+
 extern "C" void StartApplication()
 {
-	printf("\r\n [%s][%s][%d] \r\n",__FILE__,__FUNCTION__,__LINE__);
 
-	//auto myVar = ble.readOnly<uint8_t, 100>(0x1234, 0x4567, true);
 
+	/* Initiate BLE */
 	bleDevice.begin();
 
-	ble::Uuid16 srvID {0x12, 0x34};
-	ble::Uuid16 charID {0x56, 0x78};
-	ble::Uuid128 bigID {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16};
-
-	//ble::Characteristic<uint32_t> timer (0, srvID, charID);
-	auto timer ( bleDevice.addChar<uint32_t>(0, srvID, charID) );
-	auto apple ( bleDevice.addChar<uint64_t>(0, 0x7893, bigID) );
-
-	timer = 3;
-	apple = 1;
 
 	while(1)
 	{

@@ -25,33 +25,83 @@
 
 namespace ble
 {
+
 /**
  * Universally Unique IDentification (UUID)
  */
-using Uuid16 = std::array<uint8_t, 2>;
+using Uuid16 = std::uint16_t;
 using Uuid128 = std::array<uint8_t, 16>;
 
+#if 0
 constexpr Uuid16 to_uuid16(const uint16_t value)
 {
 	return {(uint8_t)(value >> 8), (uint8_t)value};
 }
+#endif
+
+
+/* GATT identifier used to access a specific database entry */
+using GattHandle_t = std::uint16_t;
+
+
+void SendNotification(GattHandle_t charHandle, uint8_t *payload, size_t size );
+
+
+/**
+ * @brief Non-template base class that defines an interface to member functions, which will
+ * be be overridden by template subclasses.
+ */
+class CharBase
+{
+public:
+	virtual void setValue( const std::uint8_t *newValue ) = 0;
+	virtual void setGattHandle(GattHandle_t gh) = 0;
+};
+
+/**
+ * GATT object handler, used to manage each user defined GATT characteristic object.
+ */
+struct GattHandler_t {
+	//TODO reference of value
+	Uuid128 srvID;
+	Uuid128 charID;
+
+	/* UUID is how many bytes long, 2 or 16 */
+	std::size_t srvIDSize;
+	std::size_t charIDSize;
+
+	/* Data value is how many bytes long */
+	std::uint8_t dataSize;
+
+	GattHandle_t serviceHandle;
+	GattHandle_t charHandle;
+
+	CharBase * userObject;
+} ;
 
 /**
  * Service & characteristic definition, instantiate one per characteristic field. Linked together
  * and they represent a complete service & characteristic object with one or more fields.
  */
-
-template< typename T, typename US = ble::Uuid16, typename UC = ble::Uuid16>
-class Characteristic
+template<typename T>
+class Characteristic : public CharBase
 {
 public:
-	Characteristic(T v, const US service, const UC characteristic, void(*aCallback)(T) = nullptr, bool updateNow = true ) :
+	Characteristic(T v, GattHandler_t *gattHandler, void(*aCallback)(T)) :
 		value(v),
 		size(sizeof(T)),
-		service(service),
-		characteristic(characteristic),
-		callback(aCallback),
-		updateNow(updateNow) {}
+		gattHandle(0),
+		callback(aCallback)
+		{
+			gattHandler->userObject = this;
+		}
+
+	/* Default initialize for empty object*/
+	Characteristic() :
+		value(0),
+		size(sizeof(T)),
+		gattHandle(0),
+		callback(nullptr) {}
 
 	~Characteristic() {}
 
@@ -64,22 +114,22 @@ public:
 	T operator =( T v)
 	{
 		value = v;
-		update(v);
-		return v;
+		updateClient();
+		return value;
 	}
 
 #if 0
 	T operator +=( T v)
 	{
 		value += v;
-		update(value);
+		updateClient();
 		return value;
 	}
 
 	T operator -=( T v)
 	{
 		value -= v;
-		update(value);
+		updateClient();
 		return value;
 	}
 #endif
@@ -93,29 +143,44 @@ public:
 	/*
 	 * GATT methods
 	 */
-	void setValue( T newValue )
+
+	/**
+	 * @brief Used by GATT interface to update user variable.
+	 * @param newValue to be assigned to user variable
+	 */
+	virtual void setValue( const std::uint8_t *newValue )
 	{
-		value = newValue;
+		value = ((T*)newValue) [0];
 		if (callback)
-			callback(newValue);
+			callback(value);
 	}
 
-	void update(T v) {
-		if (updateNow)
+	/**
+	 * @brief Asserted when user variable is updated by application, and needs to notify
+	 * 		GATT interface of new value.
+	 */
+	void updateClient() {
+		if (gattHandle)
 		{
+			SendNotification(gattHandle, (uint8_t *)&value, sizeof(T) );
 		}
+	}
+
+	/* @brief GATT handles are not known during instantiation. However, the GATT handle
+	 * 		must be set when the application needs to update/notify client.
+	 * @param gh sets internal copy of gatt handle
+	 */
+	virtual void setGattHandle(GattHandle_t gh)
+	{
+		gattHandle = gh;
 	}
 
 private:
 	T value;
 	size_t size;
 
-	const US service;
-	const UC characteristic;
-
+	GattHandle_t gattHandle;
 	void(*callback)(T);
-	bool updateNow;
-
 };
 
 } /* namespace ble*/

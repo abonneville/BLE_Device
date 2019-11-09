@@ -34,25 +34,40 @@ namespace ble
 class EffectiveBLE
 {
 public:
-	EffectiveBLE(const char * name, uint16_t interval = 1000);
+	explicit EffectiveBLE(const char * name, uint16_t interval = 1000);
 
 	~EffectiveBLE();
+
+	EffectiveBLE(const EffectiveBLE &) = delete;
+	EffectiveBLE & operator=(const EffectiveBLE &) = delete;
 
 	void begin();
 	void end();
 	void advertise();
 
 	template< typename T, typename US = ble::Uuid16, typename UC = ble::Uuid16>
-	Characteristic<T, US, UC> addChar(
+	Characteristic<T> addChar(
 			T v,
 			const US service,
 			const UC characteristic,
-			void(*aCallback)(T) = nullptr,
-			bool updateNow = true)
+			void(*aCallback)(T) = nullptr)
 	{
-		return {v, service, characteristic, aCallback, updateNow};
-	}
 
+		if ( count < gattHandles.size() )
+		{
+			gattHandles[count].srvID = (ble::Uuid128)service;
+			gattHandles[count].srvIDSize = sizeof(service);
+			gattHandles[count].charID = (ble::Uuid128)characteristic;
+			gattHandles[count].charIDSize = sizeof(characteristic);
+			gattHandles[count].dataSize = sizeof(v);
+			count++;
+			return {v, &gattHandles[count - 1], aCallback};
+		}
+
+		/* Invalid request, default initialize */
+		return {};
+	}
+#if 0
 	template< typename T, typename UC = ble::Uuid16>
 	Characteristic<T, Uuid16, UC> addChar(
 			T v,
@@ -85,11 +100,16 @@ public:
 	{
 		return {v, to_uuid16(service), to_uuid16(characteristic), aCallback, updateNow};
 	}
+#endif
 
+	std::array<GattHandler_t, 10> gattHandles;
+	std::size_t count;
 
 private:
 	class impl;
 	std::unique_ptr<impl> pimpl;
+
+	void init(void);
 };
 
 

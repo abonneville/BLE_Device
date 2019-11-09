@@ -24,6 +24,7 @@
 #include <EffectiveBLE.hpp>
 #include <cstring>
 #include <cstdint>
+#include <algorithm>
 
 #include "app_common.h"
 
@@ -37,6 +38,7 @@
 #include "shci.h"
 #include "stm32_lpm.h"
 #include "otp.h"
+#include "common_blesvc.h"
 extern "C" {
 #include "hci_tl.h"
 };
@@ -53,13 +55,32 @@ typedef struct
 
 }Adv_t;
 
+
+
 /* Define ------------------------------------------------------------*/
+#define COPY_UUID_128(uuid_struct, uuid_15, uuid_14, uuid_13, uuid_12, uuid_11, uuid_10, uuid_9, uuid_8, uuid_7, uuid_6, uuid_5, uuid_4, uuid_3, uuid_2, uuid_1, uuid_0) \
+do {\
+    uuid_struct[0] = uuid_0; uuid_struct[1] = uuid_1; uuid_struct[2] = uuid_2; uuid_struct[3] = uuid_3; \
+        uuid_struct[4] = uuid_4; uuid_struct[5] = uuid_5; uuid_struct[6] = uuid_6; uuid_struct[7] = uuid_7; \
+            uuid_struct[8] = uuid_8; uuid_struct[9] = uuid_9; uuid_struct[10] = uuid_10; uuid_struct[11] = uuid_11; \
+                uuid_struct[12] = uuid_12; uuid_struct[13] = uuid_13; uuid_struct[14] = uuid_14; uuid_struct[15] = uuid_15; \
+}while(0)
+
+
+
+#define COPY_P2P_SERVICE_UUID(uuid_struct)       COPY_UUID_128(uuid_struct,0x00,0x00,0xfe,0x40,0xcc,0x7a,0x48,0x2a,0x98,0x4a,0x7f,0x2e,0xd5,0xb3,0xe5,0x8f)
+#define COPY_P2P_WRITE_CHAR_UUID(uuid_struct)    COPY_UUID_128(uuid_struct,0x00,0x00,0xfe,0x41,0x8e,0x22,0x45,0x41,0x9d,0x4c,0x21,0xed,0xae,0x82,0xed,0x19)
+#define COPY_P2P_NOTIFY_UUID(uuid_struct)        COPY_UUID_128(uuid_struct,0x00,0x00,0xfe,0x42,0x8e,0x22,0x45,0x41,0x9d,0x4c,0x21,0xed,0xae,0x82,0xed,0x19)
+
+
 
 /* Macro -------------------------------------------------------------*/
 
 /* Variables ---------------------------------------------------------*/
 static bool hasInitialized = false;
 static Adv_t advParams {};
+static EffectiveBLE * friendObject = nullptr;
+
 
 /**
  * Advertising Data
@@ -84,6 +105,10 @@ static uint8_t manuf_data[14] = {
 /* Function prototypes -----------------------------------------------*/
 static size_t safe_strlen(const char *str, size_t max_len);
 static void Adv_Request( void );
+static SVCCTL_EvtAckStatus_t EventHandler(void *Event);
+static void ServiceInit();
+static ble::GattHandle_t addService(const ble::Uuid128 & uuid, size_t length, uint8_t quantity);
+static ble::GattHandle_t addCharacteristic(const ble::Uuid128 & uuid, size_t uuidSize, uint16_t dataSize, ble::GattHandle_t serviceHandle);
 
 /* External functions ------------------------------------------------*/
 
@@ -91,11 +116,11 @@ static void Adv_Request( void );
 
 class EffectiveBLE::impl
 {
+	friend SVCCTL_EvtAckStatus_t EventHandler(void *Event);
 public:
 	impl(const char * name, uint16_t interval ) :
 		advName(name),
-		advInterval(interval)
-	{};
+		advInterval(interval) {};
 
 	const char * advName;
 	uint16_t advInterval;
@@ -106,9 +131,10 @@ public:
  * @brief Constructor
  */
 EffectiveBLE::EffectiveBLE(const char * name, uint16_t interval) :
+		gattHandles {},
+		count (0),
 		pimpl{ std::make_unique<impl>(name, interval) }
-{
-}
+		{ friendObject = this; }
 
 EffectiveBLE::~EffectiveBLE()
 {}
@@ -124,8 +150,126 @@ void EffectiveBLE::begin()
 	    UTIL_SEQ_Run( UTIL_SEQ_DEFAULT );
 	}
 
-	advertise();
 
+	init();
+
+	advertise();
+}
+
+
+/**
+ * @brief Initialize GATT database
+ */
+void EffectiveBLE::init(void)
+{
+
+	SVCCTL_RegisterSvcHandler(EventHandler);
+
+	/* GATT characteristic handles are acquired under a specific service UUID. Before
+	 * requesting handles, we need to group by service UUID, and count how many
+	 * characteristics belong to each service UUID.
+	 */
+	std::sort(gattHandles.data(), gattHandles.data() + count,
+			[](const GattHandler_t & a, const GattHandler_t & b) -> bool
+			{ return a.srvID < b.srvID; });
+
+	for ( size_t counter = 0; counter < count; )
+	{
+		auto & service = gattHandles[counter].srvID;;
+		auto quantity = std::count_if(gattHandles.data(), gattHandles.data() + count,
+				[service](const GattHandler_t & a) -> bool
+				{ return a.srvID == service; });
+
+		/* Acquire a service handle */
+		auto length = gattHandles[counter].srvIDSize;
+		ble::GattHandle_t serviceHandle = addService(service, length, quantity);
+
+		if (serviceHandle)
+		{
+			gattHandles[counter].serviceHandle = serviceHandle;
+
+			/* Acquire a characteristic handle(s) */
+			for (auto item = 0; item < quantity; item++)
+			{
+				auto & gh = gattHandles[counter + item];
+				gh.charHandle = addCharacteristic(gh.charID, gh.charIDSize, gh.dataSize, serviceHandle);
+				if (gh.charHandle)
+				{
+					/* Update user object */
+					gh.userObject->setGattHandle(gh.charHandle);
+				}
+				else
+				{
+					/* Invalid request */
+					/* TODO capture event, debug message... */
+					break;
+				}
+			}
+		}
+
+		counter += quantity;
+	}
+
+
+}
+
+/**
+ * @brief Request adding service UUID to GATT database
+ * @param uuid to be added to GATT database
+ * @param uuidSize how many bytes long is the UUID
+ * @param quantity is how many GATT characteristic handles to be reserved in database
+ * @retval GATT handle to database entry, 0 if invalid request
+ */
+static ble::GattHandle_t addService(const ble::Uuid128 & uuid, size_t uuidSize, uint8_t quantity)
+{
+	tBleStatus status = !BLE_STATUS_SUCCESS;
+	ble::GattHandle_t handle = 0;
+
+	quantity *= 2; /* Each characteristic consumes 2 handles */
+	quantity += 1; /* Each service will consume 1 handle */
+
+	uint8_t uuidType = (uuidSize == 2) ? UUID_TYPE_16 : UUID_TYPE_128;
+
+	status = aci_gatt_add_service(
+				uuidType,
+				(Service_UUID_t *) uuid.data(),
+				PRIMARY_SERVICE,
+				quantity,
+				&handle
+				);
+
+	return (status == BLE_STATUS_SUCCESS ? handle : 0);
+}
+
+
+
+/**
+ * @brief Request adding characteristic UUID to GATT database
+ * @param uuid to be added to GATT database
+ * @param uuidSize how many bytes long is the UUID
+ * @param dataSize is how many bytes long is the data value
+ * @retval GATT handle to database entry, 0 if invalid request
+ */
+static ble::GattHandle_t addCharacteristic(const ble::Uuid128 & uuid, size_t uuidSize, uint16_t dataSize, ble::GattHandle_t serviceHandle)
+{
+	tBleStatus status = !BLE_STATUS_SUCCESS;
+	ble::GattHandle_t handle = 0;
+
+	uint8_t uuidType = (uuidSize == 2) ? UUID_TYPE_16 : UUID_TYPE_128;
+
+	status = aci_gatt_add_char(
+				serviceHandle,
+				uuidType,
+				(Char_UUID_t *) uuid.data(),
+				dataSize,
+				CHAR_PROP_WRITE_WITHOUT_RESP|CHAR_PROP_READ,
+				ATTR_PERMISSION_NONE,
+				GATT_NOTIFY_ATTRIBUTE_WRITE, /* gattEvtMask */
+				10, /* encryKeySize */
+				1, /* isVariable */
+				&handle );
+
+	return (status == BLE_STATUS_SUCCESS ? handle : 0);
 }
 
 
@@ -192,7 +336,7 @@ static size_t safe_strlen(const char *str, size_t max_len)
         return end - str;
 }
 
-#if 1
+
 /**
  * @brief  Advertising Enable
  * @param  None
@@ -230,7 +374,77 @@ static void Adv_Request( void )
 	  APP_DBG_MSG("\r\nFail: Advertising - [%s][%d][%s]\r\n", __FUNCTION__,__LINE__, __FILE__);
 	}
 }
-#endif
+
+
+
+
+/**
+ * @brief Publish a characteristic value over BLE network
+ * @param handle is the characteristic handle the value will be published under
+ * @param data is the data buffer to be sent. Length of transfer is pre-determined when
+ * 		characteristic was first set up
+ */
+void PublishValue(GattHandle_t handle, uint8_t * data)
+{
+/*
+	aci_gatt_update_char_value(uint16_t Service_Handle,
+	                                      uint16_t Char_Handle,
+	                                      uint8_t Val_Offset,
+	                                      uint8_t Char_Value_Length,
+	                                      uint8_t Char_Value[])
+*/
+
+}
+
+
+
+/**
+ * @brief Update characteristic value and send notification to client(s)
+ * @param charHandle identifies which characteristic to send notification under
+ * @param buffer is the data to be sent
+ * @param size is the amount of data to be sent
+ */
+void ble::SendNotification(GattHandle_t charHandle, uint8_t *payload, size_t size )
+{
+	tBleStatus result = !BLE_STATUS_SUCCESS;
+
+	auto gh = friendObject->gattHandles;
+
+	/* Find matching characteristic */
+	auto entry = std::find_if(gh.begin(), gh.end(),
+			[charHandle](const GattHandler_t & gatt) { return gatt.charHandle == charHandle; } );
+
+	if ( ( entry != gh.end() ) &&
+		 ( entry->dataSize == size) )
+	{
+		/* Send/publish notification of value change*/
+		result = aci_gatt_update_char_value(
+								entry->serviceHandle,
+	                            charHandle,
+	                             0, /* charValOffset */
+	                            size, /* charValueLen */
+	                            payload);
+	}
+
+	if ( result != BLE_STATUS_SUCCESS )
+	{
+	      BLE_DBG_SVCCTL_MSG(" -- Notification of value change failed.\n");
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /**************************************************************************************************
  * Below this line is the legacy STM32 WPAN
@@ -456,6 +670,8 @@ typedef struct
 
 } P2P_ConnHandle_Not_evt_t;
 
+
+
 typedef struct
 {
   uint16_t Connection_Handle;
@@ -466,6 +682,17 @@ typedef struct
   uint16_t Slave_Latency;
   uint16_t Timeout_Multiplier;
 } APP_BLE_p2p_Conn_Update_req_t;
+
+typedef struct{
+  uint16_t	PeerToPeerSvcHdle;				        /**< Service handle */
+  uint16_t	P2PWriteClientToServerCharHdle;	  /**< Characteristic handle */
+  uint16_t	P2PNotifyServerToClientCharHdle;	/**< Characteristic handle */
+#if(BLE_CFG_OTA_REBOOT_CHAR != 0)
+  uint16_t  RebootReqCharHdle;                /**< Characteristic handle */
+#endif
+}PeerToPeerContext_t;
+
+
 
 
 
@@ -486,8 +713,9 @@ PLACE_IN_SECTION("BLE_APP_CONTEXT") APP_BLE_p2p_Conn_Update_req_t APP_BLE_p2p_Co
 
 uint16_t connection_handle;
 
-
 PLACE_IN_SECTION("BLE_APP_CONTEXT") static BleApplicationContext_t BleApplicationContext;
+PLACE_IN_SECTION("BLE_DRIVER_CONTEXT") static PeerToPeerContext_t aPeerToPeerContext;
+
 
 
 static const uint8_t M_bd_addr[BD_ADDR_SIZE_LOCAL] =
@@ -520,7 +748,10 @@ static const uint8_t BLE_CFG_ER_VALUE[16] = CFG_BLE_ERK;
 tBDAddr P2P_SERVER1_BDADDR;
 
 
-
+/**
+ * @brief On receive of the System ready event from CPU2, this method is called to
+ * initialize the application layer.
+ */
 extern "C" void APP_BLE_Init( void )
 {
   SHCI_C2_Ble_Init_Cmd_Packet_t ble_init_cmd_packet =
@@ -581,7 +812,7 @@ extern "C" void APP_BLE_Init( void )
    * From here, all initialization are BLE application specific
    */
 //  UTIL_SEQ_RegTask( 1<<CFG_TASK_START_SCAN_ID, UTIL_SEQ_RFU, Scan_Request);
-//  UTIL_SEQ_RegTask( 1<<CFG_TASK_CONN_DEV_1_ID, UTIL_SEQ_RFU, ConnReq1);
+// UTIL_SEQ_RegTask( 1<<CFG_TASK_CONN_DEV_1_ID, UTIL_SEQ_RFU, ConnReq1);
 //  UTIL_SEQ_RegTask( 1<<CFG_TASK_START_ADV_ID, UTIL_SEQ_RFU, Adv_Request);
   /**
    * Initialization of the BLE App Context
@@ -600,6 +831,7 @@ extern "C" void APP_BLE_Init( void )
    */
 //  UTIL_SEQ_SetTask(1 << CFG_TASK_START_ADV_ID, CFG_SCH_PRIO_0);
 
+//  ServiceInit();
   /*
    * CPU2 and BLE stack are now initialized
    */
@@ -607,6 +839,138 @@ extern "C" void APP_BLE_Init( void )
 
   return;
 }
+
+/**
+ * @brief Event handler
+ * @param Event address of the buffer holding the event
+ * @retval indicates if the Event has been handled or not
+ */
+static SVCCTL_EvtAckStatus_t EventHandler(void *Event)
+{
+	/**
+	 * This is where the GATT layer informs of client updates; writing to characteristic value(s), changing
+	 * notification (enable/disable), etc...
+	 */
+	printf("\r\n [%s][%s][%d] \r\n",__FILE__,__FUNCTION__,__LINE__);
+
+	SVCCTL_EvtAckStatus_t retval = SVCCTL_EvtNotAck;
+	hci_event_pckt *event_pckt;
+	evt_blue_aci *blue_evt;
+	aci_gatt_attribute_modified_event_rp0    * attribute_modified;
+
+	event_pckt = (hci_event_pckt *)(((hci_uart_pckt*)Event)->data);
+
+	switch(event_pckt->evt)
+	{
+		case EVT_VENDOR:
+		{
+			blue_evt = (evt_blue_aci*)event_pckt->data;
+			switch(blue_evt->ecode)
+			{
+				case EVT_BLUE_GATT_ATTRIBUTE_MODIFIED:
+				{
+					attribute_modified = (aci_gatt_attribute_modified_event_rp0*)blue_evt->data;
+
+					/* Locate a matching characteristic handle and set the value in memory. */
+					for (size_t index = 0; index < friendObject->count; index++ )
+					{
+						auto & gh = friendObject->gattHandles[index];
+						if ( gh.charHandle == ( attribute_modified->Attr_Handle - 1) )
+						{
+							if (gh.dataSize == attribute_modified->Attr_Data_Length )
+							{
+								BLE_DBG_P2P_STM_MSG("-- GATT : Attribute modified, invoke callback \n");
+								gh.userObject->setValue(attribute_modified->Attr_Data);
+							}
+							else
+							{
+								/* Invalid length, discard data packet */
+								BLE_DBG_P2P_STM_MSG("-- GATT : Attribute modified, short packet discarded \n");
+							}
+
+							/* Match found, event handled */
+							retval = SVCCTL_EvtAckFlowEnable;
+							break;
+						}
+					}
+				}
+				break;
+
+			default:
+				break;
+			}
+		}
+		break; /* EVT_VENDOR */
+
+		default:
+			break;
+	}
+
+	return(retval);
+}
+
+/**
+ * @brief Service initialization
+ */
+static void ServiceInit()
+{
+	Char_UUID_t  uuid16;
+
+
+	SVCCTL_RegisterSvcHandler(EventHandler);
+
+    /**
+     *  Peer To Peer Service
+     *
+     * Max_Attribute_Records = 2*no_of_char + 1
+     * service_max_attribute_record = 1 for Peer To Peer service +
+     *                                2 for P2P Write characteristic +
+     *                                2 for P2P Notify characteristic +
+     *                                1 for client char configuration descriptor +
+     *
+     */
+    COPY_P2P_SERVICE_UUID(uuid16.Char_UUID_128);
+    tBleStatus status = aci_gatt_add_service(
+							UUID_TYPE_128,
+							(Service_UUID_t *) &uuid16,
+							PRIMARY_SERVICE,
+							8,
+							&(aPeerToPeerContext.PeerToPeerSvcHdle));
+
+    if ( status == BLE_STATUS_SUCCESS )
+    {
+        /**
+         *  Add LED Characteristic
+         */
+        COPY_P2P_WRITE_CHAR_UUID(uuid16.Char_UUID_128);
+        status = aci_gatt_add_char(aPeerToPeerContext.PeerToPeerSvcHdle,
+                          UUID_TYPE_128, &uuid16,
+                          2,
+                          CHAR_PROP_WRITE_WITHOUT_RESP|CHAR_PROP_READ,
+                          ATTR_PERMISSION_NONE,
+                          GATT_NOTIFY_ATTRIBUTE_WRITE, /* gattEvtMask */
+                          10, /* encryKeySize */
+                          1, /* isVariable */
+                          &(aPeerToPeerContext.P2PWriteClientToServerCharHdle));
+
+        /**
+         *   Add Button Characteristic
+         */
+        COPY_P2P_NOTIFY_UUID(uuid16.Char_UUID_128);
+        status = aci_gatt_add_char(aPeerToPeerContext.PeerToPeerSvcHdle,
+                          UUID_TYPE_128, &uuid16,
+                          2,
+                          CHAR_PROP_NOTIFY,
+                          ATTR_PERMISSION_NONE,
+                          GATT_NOTIFY_ATTRIBUTE_WRITE, /* gattEvtMask */
+                          10, /* encryKeySize */
+                          1, /* isVariable: 1 */
+                          &(aPeerToPeerContext.P2PNotifyServerToClientCharHdle));
+    }
+
+}
+
+
 
 #if 0
 
@@ -663,6 +1027,8 @@ static void Adv_Request( void )
 #endif
 
 
+
+
 extern "C" void hci_notify_asynch_evt(void* pdata)
 {
   UTIL_SEQ_SetTask(1 << CFG_TASK_HCI_ASYNCH_EVT_ID, CFG_SCH_PRIO_0);
@@ -704,7 +1070,10 @@ extern "C" void P2PS_STM_App_Notification(P2PS_STM_App_Notification_evt_t *pNoti
 
 }
 
-
+/**
+ * @brief GAP event handler
+ *
+ */
 extern "C" SVCCTL_UserEvtFlowStatus_t SVCCTL_App_Notification(void *pckt)
 {
   hci_event_pckt *event_pckt;
@@ -1167,7 +1536,6 @@ static void Ble_Hci_Gap_Gatt_Init(void){
     if (aci_gatt_update_char_value(gap_service_handle, gap_dev_name_char_handle, 0, strlen(name), (uint8_t *) name))
     {
       BLE_DBG_SVCCTL_MSG("Device Name aci_gatt_update_char_value failed.\n");
-        printf("Device Name aci_gatt_update_char_value failed.\n");
     }
   }
 
@@ -1178,7 +1546,6 @@ static void Ble_Hci_Gap_Gatt_Init(void){
                                 (uint8_t *)&appearance))
   {
     BLE_DBG_SVCCTL_MSG("Appearance aci_gatt_update_char_value failed.\n");
-	    printf("Appearance aci_gatt_update_char_value failed.\n");
   }
 
   /**
@@ -1263,6 +1630,7 @@ static void BLE_StatusNot( HCI_TL_CmdStatus_t status )
 void Evt_Notification( P2P_ConnHandle_Not_evt_t *pNotification )
 {
 /* USER CODE BEGIN Evt_Notification_1 */
+	printf("\r\n [%s][%s][%d] \r\n",__FILE__,__FUNCTION__,__LINE__);
 
 /* USER CODE END Evt_Notification_1 */
   P2PR_APP_Device_Status_t device_status = { 0 };
