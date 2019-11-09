@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "hw.h"
+#include "hw_if.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/

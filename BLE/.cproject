@@ -45,7 +45,6 @@
 								</option>
 								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.includepaths.574163180" name="Include paths (-I)" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.includepaths" useByScannerDiscovery="false" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/Inc}&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/HAL/STM32_WPAN/App}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/HAL/Middlewares/ST/STM32_WPAN/ble/core/template}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/HAL/Middlewares/ST/STM32_WPAN/ble/core}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/HAL/Utilities/lpm/tiny_lpm}&quot;"/>
@@ -72,7 +71,6 @@
 								<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.cpp.compiler.option.optimization.level.195020538" name="Optimization level" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.cpp.compiler.option.optimization.level" useByScannerDiscovery="false"/>
 								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.cpp.compiler.option.includepaths.973383394" name="Include paths (-I)" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.cpp.compiler.option.includepaths" useByScannerDiscovery="false" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/Inc}&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/HAL/STM32_WPAN/App}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/HAL/Middlewares/ST/STM32_WPAN/ble/core/template}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/HAL/Middlewares/ST/STM32_WPAN/ble/core}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/HAL/Utilities/lpm/tiny_lpm}&quot;"/>
@@ -184,7 +182,6 @@
 								</option>
 								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.includepaths.104866601" name="Include paths (-I)" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.includepaths" useByScannerDiscovery="false" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/Inc}&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/HAL/STM32_WPAN/App}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/HAL/Middlewares/ST/STM32_WPAN/ble/core/template}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/HAL/Middlewares/ST/STM32_WPAN/ble/core}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/HAL/Utilities/lpm/tiny_lpm}&quot;"/>
@@ -211,7 +208,6 @@
 								<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.cpp.compiler.option.optimization.level.1334234127" name="Optimization level" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.cpp.compiler.option.optimization.level" useByScannerDiscovery="false" value="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.cpp.compiler.option.optimization.level.value.os" valueType="enumerated"/>
 								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.cpp.compiler.option.includepaths.920733251" name="Include paths (-I)" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.cpp.compiler.option.includepaths" useByScannerDiscovery="false" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/Inc}&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/HAL/STM32_WPAN/App}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/HAL/Middlewares/ST/STM32_WPAN/ble/core/template}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/HAL/Middlewares/ST/STM32_WPAN/ble/core}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/HAL/Utilities/lpm/tiny_lpm}&quot;"/>

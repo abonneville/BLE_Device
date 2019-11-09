@@ -26,9 +26,6 @@
 #include <cstdint>
 #include <algorithm>
 
-#include "app_common.h"
-
-
 // WPAN Core files
 #include "ble_defs.h"
 #include "dbg_trace.h"
@@ -58,20 +55,11 @@ typedef struct
 
 
 /* Define ------------------------------------------------------------*/
-#define COPY_UUID_128(uuid_struct, uuid_15, uuid_14, uuid_13, uuid_12, uuid_11, uuid_10, uuid_9, uuid_8, uuid_7, uuid_6, uuid_5, uuid_4, uuid_3, uuid_2, uuid_1, uuid_0) \
-do {\
-    uuid_struct[0] = uuid_0; uuid_struct[1] = uuid_1; uuid_struct[2] = uuid_2; uuid_struct[3] = uuid_3; \
-        uuid_struct[4] = uuid_4; uuid_struct[5] = uuid_5; uuid_struct[6] = uuid_6; uuid_struct[7] = uuid_7; \
-            uuid_struct[8] = uuid_8; uuid_struct[9] = uuid_9; uuid_struct[10] = uuid_10; uuid_struct[11] = uuid_11; \
-                uuid_struct[12] = uuid_12; uuid_struct[13] = uuid_13; uuid_struct[14] = uuid_14; uuid_struct[15] = uuid_15; \
-}while(0)
 
-
-
-#define COPY_P2P_SERVICE_UUID(uuid_struct)       COPY_UUID_128(uuid_struct,0x00,0x00,0xfe,0x40,0xcc,0x7a,0x48,0x2a,0x98,0x4a,0x7f,0x2e,0xd5,0xb3,0xe5,0x8f)
-#define COPY_P2P_WRITE_CHAR_UUID(uuid_struct)    COPY_UUID_128(uuid_struct,0x00,0x00,0xfe,0x41,0x8e,0x22,0x45,0x41,0x9d,0x4c,0x21,0xed,0xae,0x82,0xed,0x19)
-#define COPY_P2P_NOTIFY_UUID(uuid_struct)        COPY_UUID_128(uuid_struct,0x00,0x00,0xfe,0x42,0x8e,0x22,0x45,0x41,0x9d,0x4c,0x21,0xed,0xae,0x82,0xed,0x19)
-
+//TODO delete or replace
+#define CFG_MAX_CONNECTION                8
+#define BLE_DBG_SVCCTL_MSG std::printf
+#define BLE_DBG_P2P_STM_MSG std::printf
 
 
 /* Macro -------------------------------------------------------------*/
@@ -85,7 +73,6 @@ static EffectiveBLE * friendObject = nullptr;
 /**
  * Advertising Data
  */
-// TODO static char local_name[] = { AD_TYPE_COMPLETE_LOCAL_NAME,'B','L','E',' ','S','M','A','R','T'};
 static uint8_t manuf_data[14] = {
     sizeof(manuf_data)-1, AD_TYPE_MANUFACTURER_SPECIFIC_DATA,
     0x01/*SKD version */,
@@ -106,7 +93,6 @@ static uint8_t manuf_data[14] = {
 static size_t safe_strlen(const char *str, size_t max_len);
 static void Adv_Request( void );
 static SVCCTL_EvtAckStatus_t EventHandler(void *Event);
-static void ServiceInit();
 static ble::GattHandle_t addService(const ble::Uuid128 & uuid, size_t length, uint8_t quantity);
 static ble::GattHandle_t addCharacteristic(const ble::Uuid128 & uuid, size_t uuidSize, uint16_t dataSize, ble::GattHandle_t serviceHandle);
 
@@ -139,6 +125,7 @@ EffectiveBLE::EffectiveBLE(const char * name, uint16_t interval) :
 EffectiveBLE::~EffectiveBLE()
 {}
 
+
 /**
  * @brief initializes and starts the BLE device
  */
@@ -158,7 +145,7 @@ void EffectiveBLE::begin()
 
 
 /**
- * @brief Initialize GATT database
+ * @brief Populate GATT database with service and characteristic entries.
  */
 void EffectiveBLE::init(void)
 {
@@ -186,23 +173,16 @@ void EffectiveBLE::init(void)
 
 		if (serviceHandle)
 		{
-			gattHandles[counter].serviceHandle = serviceHandle;
-
 			/* Acquire a characteristic handle(s) */
 			for (auto item = 0; item < quantity; item++)
 			{
 				auto & gh = gattHandles[counter + item];
+				gh.serviceHandle = serviceHandle;
 				gh.charHandle = addCharacteristic(gh.charID, gh.charIDSize, gh.dataSize, serviceHandle);
-				if (gh.charHandle)
+				if (gh.userObject)
 				{
-					/* Update user object */
+					/* Assign handle to user object to facilitate client notification. */
 					gh.userObject->setGattHandle(gh.charHandle);
-				}
-				else
-				{
-					/* Invalid request */
-					/* TODO capture event, debug message... */
-					break;
 				}
 			}
 		}
@@ -274,7 +254,7 @@ static ble::GattHandle_t addCharacteristic(const ble::Uuid128 & uuid, size_t uui
 
 
 /**
- * @brief initiates advertising device capability
+ * @brief Setup the ability to advertise device capability
  * @param advName local name to advertise with
  * @param advInterval advertising interval between packets, in mS
  */
@@ -338,9 +318,7 @@ static size_t safe_strlen(const char *str, size_t max_len)
 
 
 /**
- * @brief  Advertising Enable
- * @param  None
- * @retval None
+ * @brief  Initiate advertising to a new client
  */
 static void Adv_Request( void )
 {
@@ -374,28 +352,6 @@ static void Adv_Request( void )
 	  APP_DBG_MSG("\r\nFail: Advertising - [%s][%d][%s]\r\n", __FUNCTION__,__LINE__, __FILE__);
 	}
 }
-
-
-
-
-/**
- * @brief Publish a characteristic value over BLE network
- * @param handle is the characteristic handle the value will be published under
- * @param data is the data buffer to be sent. Length of transfer is pre-determined when
- * 		characteristic was first set up
- */
-void PublishValue(GattHandle_t handle, uint8_t * data)
-{
-/*
-	aci_gatt_update_char_value(uint16_t Service_Handle,
-	                                      uint16_t Char_Handle,
-	                                      uint8_t Val_Offset,
-	                                      uint8_t Char_Value_Length,
-	                                      uint8_t Char_Value[])
-*/
-
-}
-
 
 
 /**
@@ -456,15 +412,6 @@ void ble::SendNotification(GattHandle_t charHandle, uint8_t *payload, size_t siz
 #define BD_ADDR_SIZE_LOCAL    6
 
 
-// TODO delete/replace
-typedef struct
-{
-    uint8_t     Device1_Status;
-/* USER CODE BEGIN P2PR_APP_Device_Status_t_Multidevice */
-
-/* USER CODE END P2PR_APP_Device_Status_t_Multidevice */
- }P2PR_APP_Device_Status_t;
-
 
 typedef enum
 {
@@ -472,15 +419,6 @@ typedef enum
   P2P_SERVER1_DISCON_HANDLE_EVT,
   SMART_PHONE1_CONN_HANDLE_EVT,
   SMART_PHONE1_DISCON_HANDLE_EVT,
-#if (CFG_P2P_DEMO_MULTI != 0)
-/* USER CODE BEGIN P2P_SERVER_CONN_HANDLE_EVT_Multi */
-
-/* USER CODE END P2P_SERVER_CONN_HANDLE_EVT_Multi */
-/* USER CODE BEGIN P2P_SERVER_DISCON_HANDLE_EVT_Multi */
-
-/* USER CODE END P2P_SERVER_DISCON_HANDLE_EVT_Multi */
-#endif
-
 } P2P_Opcode_Notification_evt_t;
 
 
@@ -644,22 +582,10 @@ typedef struct
    */
   uint16_t connectionHandleEndDevice1;
 
-#if (CFG_P2P_DEMO_MULTI != 0)
-/* USER CODE BEGIN connectionHandleEndDevice_Multi */
-
-/* USER CODE END connectionHandleEndDevice_Multi */
-#endif
-
   /**
    * used when doing advertising to find end device 1
    */
   uint8_t EndDevice1Found;
-
-#if (CFG_P2P_DEMO_MULTI != 0)
-/* USER CODE BEGIN EndDeviceFound_Multi */
-
-/* USER CODE END EndDeviceFound_Multi */
-#endif
 
 } BleApplicationContext_t;
 
@@ -683,14 +609,6 @@ typedef struct
   uint16_t Timeout_Multiplier;
 } APP_BLE_p2p_Conn_Update_req_t;
 
-typedef struct{
-  uint16_t	PeerToPeerSvcHdle;				        /**< Service handle */
-  uint16_t	P2PWriteClientToServerCharHdle;	  /**< Characteristic handle */
-  uint16_t	P2PNotifyServerToClientCharHdle;	/**< Characteristic handle */
-#if(BLE_CFG_OTA_REBOOT_CHAR != 0)
-  uint16_t  RebootReqCharHdle;                /**< Characteristic handle */
-#endif
-}PeerToPeerContext_t;
 
 
 
@@ -702,9 +620,6 @@ static void Ble_Hci_Gap_Gatt_Init(void);
 static void BLE_StatusNot( HCI_TL_CmdStatus_t status );
 static void BLE_UserEvtRx( void * pPayload );
 const uint8_t* BleGetBdAddress( void );
-void Evt_Notification( P2P_ConnHandle_Not_evt_t *pNotification );
-static void P2PR_APP_End_Device_Mgt_Connection_Update( P2PR_APP_Device_Status_t *p_device_status );
-static void Adv_Request( void );
 
 P2P_ConnHandle_Not_evt_t handleNotification;
 
@@ -714,7 +629,6 @@ PLACE_IN_SECTION("BLE_APP_CONTEXT") APP_BLE_p2p_Conn_Update_req_t APP_BLE_p2p_Co
 uint16_t connection_handle;
 
 PLACE_IN_SECTION("BLE_APP_CONTEXT") static BleApplicationContext_t BleApplicationContext;
-PLACE_IN_SECTION("BLE_DRIVER_CONTEXT") static PeerToPeerContext_t aPeerToPeerContext;
 
 
 
@@ -811,9 +725,7 @@ extern "C" void APP_BLE_Init( void )
   /**
    * From here, all initialization are BLE application specific
    */
-//  UTIL_SEQ_RegTask( 1<<CFG_TASK_START_SCAN_ID, UTIL_SEQ_RFU, Scan_Request);
-// UTIL_SEQ_RegTask( 1<<CFG_TASK_CONN_DEV_1_ID, UTIL_SEQ_RFU, ConnReq1);
-//  UTIL_SEQ_RegTask( 1<<CFG_TASK_START_ADV_ID, UTIL_SEQ_RFU, Adv_Request);
+
   /**
    * Initialization of the BLE App Context
    */
@@ -821,17 +733,6 @@ extern "C" void APP_BLE_Init( void )
   BleApplicationContext.EndDevice_Connection_Status[0] = APP_BLE_IDLE;
   BleApplicationContext.EndDevice1Found = 0x00;
 
-/**
- * Initialize P2P Routeur Application
- */
-  //P2PR_APP_Init();
-
-  /**
-   * Place advertising task in pending state
-   */
-//  UTIL_SEQ_SetTask(1 << CFG_TASK_START_ADV_ID, CFG_SCH_PRIO_0);
-
-//  ServiceInit();
   /*
    * CPU2 and BLE stack are now initialized
    */
@@ -909,123 +810,6 @@ static SVCCTL_EvtAckStatus_t EventHandler(void *Event)
 	return(retval);
 }
 
-/**
- * @brief Service initialization
- */
-static void ServiceInit()
-{
-	Char_UUID_t  uuid16;
-
-
-	SVCCTL_RegisterSvcHandler(EventHandler);
-
-    /**
-     *  Peer To Peer Service
-     *
-     * Max_Attribute_Records = 2*no_of_char + 1
-     * service_max_attribute_record = 1 for Peer To Peer service +
-     *                                2 for P2P Write characteristic +
-     *                                2 for P2P Notify characteristic +
-     *                                1 for client char configuration descriptor +
-     *
-     */
-    COPY_P2P_SERVICE_UUID(uuid16.Char_UUID_128);
-    tBleStatus status = aci_gatt_add_service(
-							UUID_TYPE_128,
-							(Service_UUID_t *) &uuid16,
-							PRIMARY_SERVICE,
-							8,
-							&(aPeerToPeerContext.PeerToPeerSvcHdle));
-
-    if ( status == BLE_STATUS_SUCCESS )
-    {
-        /**
-         *  Add LED Characteristic
-         */
-        COPY_P2P_WRITE_CHAR_UUID(uuid16.Char_UUID_128);
-        status = aci_gatt_add_char(aPeerToPeerContext.PeerToPeerSvcHdle,
-                          UUID_TYPE_128, &uuid16,
-                          2,
-                          CHAR_PROP_WRITE_WITHOUT_RESP|CHAR_PROP_READ,
-                          ATTR_PERMISSION_NONE,
-                          GATT_NOTIFY_ATTRIBUTE_WRITE, /* gattEvtMask */
-                          10, /* encryKeySize */
-                          1, /* isVariable */
-                          &(aPeerToPeerContext.P2PWriteClientToServerCharHdle));
-
-        /**
-         *   Add Button Characteristic
-         */
-        COPY_P2P_NOTIFY_UUID(uuid16.Char_UUID_128);
-        status = aci_gatt_add_char(aPeerToPeerContext.PeerToPeerSvcHdle,
-                          UUID_TYPE_128, &uuid16,
-                          2,
-                          CHAR_PROP_NOTIFY,
-                          ATTR_PERMISSION_NONE,
-                          GATT_NOTIFY_ATTRIBUTE_WRITE, /* gattEvtMask */
-                          10, /* encryKeySize */
-                          1, /* isVariable: 1 */
-                          &(aPeerToPeerContext.P2PNotifyServerToClientCharHdle));
-    }
-
-}
-
-
-
-#if 0
-
-/**
- * @brief  Advertising Enable
- * @param  None
- * @retval None
- */
-static void Adv_Request( void )
-{
-  /* USER CODE BEGIN Connect_Request_1 */
-
-  /* USER CODE END Connect_Request_1 */
-  if (BleApplicationContext.SmartPhone_Connection_Status != APP_BLE_CONNECTED)
-  {
-    tBleStatus result = 0x00;
-    /*Start Advertising*/
-    result = aci_gap_set_discoverable(ADV_IND,
-                                      LEDBUTTON_CONN_ADV_INTERVAL_MIN,
-                                      LEDBUTTON_CONN_ADV_INTERVAL_MAX,
-                                      PUBLIC_ADDR,
-                                      NO_WHITE_LIST_USE, /* use white list */
-                                      sizeof(local_name),
-                                      (uint8_t*)local_name,
-                                      0,
-                                      NULL,
-                                      0,
-                                      0);
-    /* Send Advertising data */
-    result = aci_gap_update_adv_data(sizeof(manuf_data), (uint8_t*) manuf_data);
-
-    BleApplicationContext.SmartPhone_Connection_Status = APP_BLE_FAST_ADV;
-    if (result == BLE_STATUS_SUCCESS)
-    {
-    /* USER CODE BEGIN BLE_CONNECT_SUCCESS */
-
-    /* USER CODE END BLE_CONNECT_SUCCESS */
-      APP_DBG_MSG("  \r\n\r");
-      APP_DBG_MSG("** START ADVERTISING **  \r\n\r");
-    }
-    else
-    {
-    /* USER CODE BEGIN BLE_CONNECT_FAILED */
-
-    /* USER CODE END BLE_CONNECT_FAILED */
-      APP_DBG_MSG("BLE_APP_Adv_Request(), Failed \r\n\r");
-    }
-  }
-  /* USER CODE BEGIN Connect_Request_2 */
-
-  /* USER CODE END Connect_Request_2 */
-  return;
-}
-#endif
-
 
 
 
@@ -1047,28 +831,6 @@ extern "C" void hci_cmd_resp_wait(uint32_t timeout)
   return;
 }
 
-/**
- * @brief  End Device service Notification
- * @param  GATT Notification (Opcode & Data)
- * @retval None
- */
-extern "C" void EDS_STM_App_Notification(EDS_STM_App_Notification_evt_t *pNotification)
-{
-	printf("\r\n [%s][%s][%d] \r\n",__FILE__,__FUNCTION__,__LINE__);
-
-}
-
-
-/**
- * @brief  P2P service Notification
- * @param  GATT Notification (Opcode & Data)
- * @retval None
- */
-extern "C" void P2PS_STM_App_Notification(P2PS_STM_App_Notification_evt_t *pNotification)
-{
-	printf("\r\n [%s][%s][%d] \r\n",__FILE__,__FUNCTION__,__LINE__);
-
-}
 
 /**
  * @brief GAP event handler
@@ -1078,16 +840,14 @@ extern "C" SVCCTL_UserEvtFlowStatus_t SVCCTL_App_Notification(void *pckt)
 {
   hci_event_pckt *event_pckt;
   evt_le_meta_event *meta_evt;
-  hci_le_connection_complete_event_rp0 * connection_complete_event;
   evt_blue_aci *blue_evt;
   hci_le_advertising_report_event_rp0 * le_advertising_event;
   event_pckt = (hci_event_pckt*) ((hci_uart_pckt *) pckt)->data;
   uint8_t result;
-  uint8_t role, event_type, event_data_size;
+  uint8_t event_type, event_data_size;
   int k = 0;
   uint8_t *adv_report_data;
   uint8_t adtype, adlength;
-  hci_disconnection_complete_event_rp0 *cc = (hci_disconnection_complete_event_rp0 *) (void *) event_pckt->data;
 
   switch (event_pckt->evt)
   {
@@ -1127,12 +887,6 @@ extern "C" SVCCTL_UserEvtFlowStatus_t SVCCTL_App_Notification(void *pckt)
             {
               UTIL_SEQ_SetTask(1 << CFG_TASK_CONN_DEV_1_ID, CFG_SCH_PRIO_0);
             }
-#if (CFG_P2P_DEMO_MULTI != 0)
-          /* USER CODE BEGIN EVT_BLUE_GAP_PROCEDURE_COMPLETE_Multi */
-
-          /* USER CODE END EVT_BLUE_GAP_PROCEDURE_COMPLETE_Multi */
-#endif
-
           }
 
         }
@@ -1182,124 +936,18 @@ extern "C" SVCCTL_UserEvtFlowStatus_t SVCCTL_App_Notification(void *pckt)
     break; /* EVT_VENDOR */
 
     case EVT_DISCONN_COMPLETE:
-
-      /* USER CODE BEGIN EVT_DISCONN_COMPLETE */
-
-      /* USER CODE END EVT_DISCONN_COMPLETE */
-          if (cc->Connection_Handle == BleApplicationContext.connectionHandleEndDevice1)
-          {
-            APP_DBG_MSG("\r\n\r** DISCONNECTION EVENT OF END DEVICE 1 \n");
-            BleApplicationContext.EndDevice_Connection_Status[0] = APP_BLE_IDLE;
-            BleApplicationContext.connectionHandleEndDevice1 = 0xFFFF;
-            handleNotification.P2P_Evt_Opcode = P2P_SERVER1_DISCON_HANDLE_EVT;
-            handleNotification.ConnectionHandle = connection_handle;
-            Evt_Notification(&handleNotification);
-          }
-
-  if (cc->Connection_Handle == BleApplicationContext.connectionHandleCentral)
-  {
-    APP_DBG_MSG("\r\n\r** DISCONNECTION EVENT OF SMART PHONE \n");
-    BleApplicationContext.connectionHandleCentral = APP_BLE_IDLE;
-    handleNotification.P2P_Evt_Opcode = SMART_PHONE1_DISCON_HANDLE_EVT;
-    handleNotification.ConnectionHandle = 0xFFFF;
-    Evt_Notification(&handleNotification);
-  }
-
-#if (CFG_P2P_DEMO_MULTI != 0)
-          /* USER CODE BEGIN EVT_DISCONN_COMPLETE_Multi */
-
-          /* USER CODE END EVT_DISCONN_COMPLETE_Multi */
-#endif
-
+        APP_DBG_MSG("-- Disconnected from client.\n");
+        //TODO temp until disconnect callback is in place
+        UTIL_SEQ_SetTask(1 << CFG_TASK_START_ADV_ID, CFG_SCH_PRIO_0);
       break; /* EVT_DISCONN_COMPLETE */
 
     case EVT_LE_META_EVENT:
-
-      /* USER CODE BEGIN EVT_LE_META_EVENT */
-
-      /* USER CODE END EVT_LE_META_EVENT */
       meta_evt = (evt_le_meta_event*) event_pckt->data;
 
       switch (meta_evt->subevent)
       {
-      /* USER CODE BEGIN subevent */
-
-      /* USER CODE END subevent */
         case EVT_LE_CONN_COMPLETE:
-          /* USER CODE BEGIN EVT_LE_CONN_COMPLETE */
-
-          /* USER CODE END EVT_LE_CONN_COMPLETE */
-          /**
-           * The connection is done, there is no need anymore to schedule the LP ADV
-           */
-          connection_complete_event = (hci_le_connection_complete_event_rp0 *) meta_evt->data;
-
-          connection_handle = connection_complete_event->Connection_Handle;
-          role = connection_complete_event->Role;
-          if (role == 0x00)
-          { /* ROLE MASTER */
-
-            uint8_t dev1 = 1
-#if (CFG_P2P_DEMO_MULTI != 0)
-          /* USER CODE BEGIN EVT_LE_CONN_COMPLETE_Multi */
-
-          /* USER CODE END EVT_LE_CONN_COMPLETE_Multi */
-#endif
-                ;
-
-            for (int i = 0; i < 6; i++)
-            {
-              dev1 &= (P2P_SERVER1_BDADDR[i] == connection_complete_event->Peer_Address[i]);
-#if (CFG_P2P_DEMO_MULTI != 0)
-          /* USER CODE BEGIN EVT_LE_CONN_COMPLETE_Multi_2 */
-
-          /* USER CODE END EVT_LE_CONN_COMPLETE_Multi_2 */
-#endif
-            }
-
-            if (dev1 == 1)
-            {
-              /* Inform Application it is End Device 1 */
-              APP_DBG_MSG("-- CONNECTION SUCCESS WITH END DEVICE 1\n");
-              BleApplicationContext.EndDevice_Connection_Status[0] = APP_BLE_CONNECTED;
-              BleApplicationContext.connectionHandleEndDevice1 = connection_handle;
-              BleApplicationContext.BleApplicationContext_legacy.connectionHandle[0] = connection_handle;
-              handleNotification.P2P_Evt_Opcode = P2P_SERVER1_CONN_HANDLE_EVT;
-              handleNotification.ConnectionHandle = connection_handle;
-              Evt_Notification(&handleNotification);
-              result = aci_gatt_disc_all_primary_services(BleApplicationContext.connectionHandleEndDevice1);
-              if (result == BLE_STATUS_SUCCESS)
-              {
-                APP_DBG_MSG("\r\n\r** GATT SERVICES & CHARACTERISTICS DISCOVERY  \n");
-                APP_DBG_MSG("* GATT :  Start Searching Primary Services \r\n\r");
-              }
-              else
-              {
-              APP_DBG_MSG("BLE_CTRL_App_Notification(), All services discovery Failed \r\n\r");
-              }
-#if (CFG_P2P_DEMO_MULTI != 0)
-          /* USER CODE BEGIN EVT_LE_CONN_COMPLETE_Multi_3 */
-
-          /* USER CODE END EVT_LE_CONN_COMPLETE_Multi_3 */
-#endif
-
-            }
-#if (CFG_P2P_DEMO_MULTI != 0)
-          /* USER CODE BEGIN EVT_LE_CONN_COMPLETE_Multi_4 */
-
-          /* USER CODE END EVT_LE_CONN_COMPLETE_Multi_4 */
-#endif
-          }
-
-          else
-          {
-            APP_DBG_MSG("-- CONNECTION SUCCESS WITH SMART PHONE\n");
-            BleApplicationContext.connectionHandleCentral = connection_handle;
-            handleNotification.P2P_Evt_Opcode = SMART_PHONE1_CONN_HANDLE_EVT;
-            handleNotification.ConnectionHandle = connection_handle;
-            Evt_Notification(&handleNotification);
-          }
-
+            APP_DBG_MSG("-- Connected to client.\n");
           break; /* HCI_EVT_LE_CONN_COMPLETE */
 
         case EVT_LE_ADVERTISING_REPORT:
@@ -1368,11 +1016,6 @@ extern "C" SVCCTL_UserEvtFlowStatus_t SVCCTL_App_Notification(void *pckt)
                         P2P_SERVER1_BDADDR[4] = le_advertising_event->Advertising_Report[0].Address[4];
                         P2P_SERVER1_BDADDR[5] = le_advertising_event->Advertising_Report[0].Address[5];
                         break;
-#if (CFG_P2P_DEMO_MULTI != 0)
-                    /* USER CODE BEGIN CFG_DEV_ID_P2P_SERVER_Multi */
-
-                    /* USER CODE END CFG_DEV_ID_P2P_SERVER_Multi */
-#endif
                       default:
                     break;
                     }
@@ -1515,15 +1158,7 @@ static void Ble_Hci_Gap_Gatt_Init(void){
   /**
    * Initialize GAP interface
    */
-  role = 0;
-
-#if (BLE_CFG_PERIPHERAL == 1)
-  role |= GAP_PERIPHERAL_ROLE;
-#endif
-
-#if (BLE_CFG_CENTRAL == 1)
-  role |= GAP_CENTRAL_ROLE;
-#endif
+  role = GAP_PERIPHERAL_ROLE | GAP_CENTRAL_ROLE;
 
   if (role > 0)
   {
@@ -1551,13 +1186,13 @@ static void Ble_Hci_Gap_Gatt_Init(void){
   /**
    * Initialize IO capability
    */
-  BleApplicationContext.BleApplicationContext_legacy.bleSecurityParam.ioCapability = CFG_IO_CAPABILITY;
+  BleApplicationContext.BleApplicationContext_legacy.bleSecurityParam.ioCapability = CFG_IO_CAPABILITY_DISPLAY_ONLY;
   aci_gap_set_io_capability(BleApplicationContext.BleApplicationContext_legacy.bleSecurityParam.ioCapability);
 
   /**
    * Initialize authentication
    */
-  BleApplicationContext.BleApplicationContext_legacy.bleSecurityParam.mitm_mode = CFG_MITM_PROTECTION;
+  BleApplicationContext.BleApplicationContext_legacy.bleSecurityParam.mitm_mode = CFG_MITM_PROTECTION_REQUIRED;
   BleApplicationContext.BleApplicationContext_legacy.bleSecurityParam.OOB_Data_Present = 0;
   BleApplicationContext.BleApplicationContext_legacy.bleSecurityParam.encryptionKeySizeMin = 8;
   BleApplicationContext.BleApplicationContext_legacy.bleSecurityParam.encryptionKeySizeMax = 16;
@@ -1622,66 +1257,6 @@ static void BLE_StatusNot( HCI_TL_CmdStatus_t status )
 }
 
 
-/**
- * @brief  P2P GAP Notification
- * @param  GAP Notification (Opcode & Data)
- * @retval None
- */
-void Evt_Notification( P2P_ConnHandle_Not_evt_t *pNotification )
-{
-/* USER CODE BEGIN Evt_Notification_1 */
-	printf("\r\n [%s][%s][%d] \r\n",__FILE__,__FUNCTION__,__LINE__);
-
-/* USER CODE END Evt_Notification_1 */
-  P2PR_APP_Device_Status_t device_status = { 0 };
-
-  switch (pNotification->P2P_Evt_Opcode)
-  {
-    /* USER CODE BEGIN P2P_Evt_Opcode */
-
-    /* USER CODE END P2P_Evt_Opcode */
-    case SMART_PHONE1_CONN_HANDLE_EVT:
-
-      break;
-
-    case P2P_SERVER1_CONN_HANDLE_EVT:
-      device_status.Device1_Status = 0x81; /* Connected */
-      P2PR_APP_End_Device_Mgt_Connection_Update(&device_status);
-      break;
-
-    case P2P_SERVER1_DISCON_HANDLE_EVT:
-      device_status.Device1_Status = 0x80; /* Not connected */
-      P2PR_APP_End_Device_Mgt_Connection_Update(&device_status);
-      /* restart Create Connection */
-      UTIL_SEQ_SetTask(1 << CFG_TASK_CONN_DEV_1_ID, CFG_SCH_PRIO_0);
-      break;
-
-    case SMART_PHONE1_DISCON_HANDLE_EVT:
-      UTIL_SEQ_SetTask(1 << CFG_TASK_START_ADV_ID, CFG_SCH_PRIO_0);
-      break;
-
-#if (CFG_P2P_DEMO_MULTI != 0)
-    /* USER CODE BEGIN P2P_SERVER_CONN_HANDLE_EVT_Multi_Notification */
-
-    /* USER CODE END P2P_SERVER_CONN_HANDLE_EVT_Multi_Notification */
-    /* USER CODE BEGIN P2P_SERVER_DISCON_HANDLE_EVT_Multi_Notification */
-
-    /* USER CODE END P2P_SERVER_DISCON_HANDLE_EVT_Multi_Notification */
-#endif
-
-    default:
-    /* USER CODE BEGIN P2P_Evt_Opcode_Default */
-
-    /* USER CODE END P2P_Evt_Opcode_Default */
-    break;
-  }
-/* USER CODE BEGIN Evt_Notification_2 */
-
-/* USER CODE END Evt_Notification_2 */
-  return;
-}
-
-
 const uint8_t* BleGetBdAddress( void )
 {
   uint8_t *otp_addr;
@@ -1721,31 +1296,4 @@ const uint8_t* BleGetBdAddress( void )
   }
 
   return bd_addr;
-}
-
-/**
- * @brief  End Device Managment
- * @param  None
- * @retval None
- */
-static void P2PR_APP_End_Device_Mgt_Connection_Update( P2PR_APP_Device_Status_t *p_device_status )
-{
-/* USER CODE BEGIN P2PR_APP_End_Device_Mgt_Connection_Update_1 */
-
-/* USER CODE END P2PR_APP_End_Device_Mgt_Connection_Update_1 */
-    if( (p_device_status->Device1_Status) & (0x80) )
-    {
-    /* USER CODE BEGIN Device1_Status */
-
-    /* USER CODE END Device1_Status */
-    }
-#if (CFG_P2P_DEMO_MULTI != 0 )
-    /* USER CODE BEGIN CFG_P2P_DEMO_MULTI */
-
-    /* USER CODE END CFG_P2P_DEMO_MULTI */
-#endif
-/* USER CODE BEGIN P2PR_APP_End_Device_Mgt_Connection_Update_2 */
-
-/* USER CODE END P2PR_APP_End_Device_Mgt_Connection_Update_2 */
-    return;
 }
