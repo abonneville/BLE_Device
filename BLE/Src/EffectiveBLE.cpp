@@ -209,11 +209,17 @@ static ble::GattHandle_t addService(const ble::Uuid128 & uuid, size_t uuidSize, 
 	quantity *= 2; /* Each characteristic consumes 2 handles */
 	quantity += 1; /* Each service will consume 1 handle */
 
+	/* The UUIDs are stored in a byte array with MSB first. However, the BLE standard requires
+	 * LSB (little endian) be sent first. Make a copy (protect original) and load into GATT database.
+	 */
+	ble::Uuid128 uuidReversed;
+	std::reverse_copy( uuid.cbegin(), uuid.cend(), uuidReversed.begin() );
+
 	uint8_t uuidType = (uuidSize == 2) ? UUID_TYPE_16 : UUID_TYPE_128;
 
 	status = aci_gatt_add_service(
 				uuidType,
-				(Service_UUID_t *) uuid.data(),
+				(Service_UUID_t *) uuidReversed.data(),
 				PRIMARY_SERVICE,
 				(uint8_t)quantity,
 				&handle
@@ -236,12 +242,18 @@ static ble::GattHandle_t addCharacteristic(const ble::Uuid128 & uuid, size_t uui
 	tBleStatus status = !BLE_STATUS_SUCCESS;
 	ble::GattHandle_t handle = 0;
 
+	/* The UUIDs are stored in a byte array with MSB first. However, the BLE standard requires
+	 * LSB (little endian) be sent first. Make a copy (protect original) and load into GATT database.
+	 */
+	ble::Uuid128 uuidReversed;
+	std::reverse_copy( uuid.cbegin(), uuid.cend(), uuidReversed.begin() );
+
 	uint8_t uuidType = (uuidSize == 2) ? UUID_TYPE_16 : UUID_TYPE_128;
 
 	status = aci_gatt_add_char(
 				serviceHandle,
 				uuidType,
-				(Char_UUID_t *) uuid.data(),
+				(Char_UUID_t *) uuidReversed.data(),
 				dataSize,
 				CHAR_PROP_WRITE_WITHOUT_RESP|CHAR_PROP_READ,
 				ATTR_PERMISSION_NONE,
