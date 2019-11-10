@@ -38,7 +38,7 @@
 #include "common_blesvc.h"
 extern "C" {
 #include "hci_tl.h"
-};
+}
 
 using namespace ble;
 
@@ -93,7 +93,7 @@ static uint8_t manuf_data[14] = {
 static size_t safe_strlen(const char *str, size_t max_len);
 static void Adv_Request( void );
 static SVCCTL_EvtAckStatus_t EventHandler(void *Event);
-static ble::GattHandle_t addService(const ble::Uuid128 & uuid, size_t length, uint8_t quantity);
+static ble::GattHandle_t addService(const ble::Uuid128 & uuid, size_t uuidSize, size_t quantity);
 static ble::GattHandle_t addCharacteristic(const ble::Uuid128 & uuid, size_t uuidSize, uint16_t dataSize, ble::GattHandle_t serviceHandle);
 
 /* External functions ------------------------------------------------*/
@@ -200,11 +200,12 @@ void EffectiveBLE::init(void)
  * @param quantity is how many GATT characteristic handles to be reserved in database
  * @retval GATT handle to database entry, 0 if invalid request
  */
-static ble::GattHandle_t addService(const ble::Uuid128 & uuid, size_t uuidSize, uint8_t quantity)
+static ble::GattHandle_t addService(const ble::Uuid128 & uuid, size_t uuidSize, size_t quantity)
 {
 	tBleStatus status = !BLE_STATUS_SUCCESS;
 	ble::GattHandle_t handle = 0;
 
+	quantity = ( quantity > 127 ) ? 0 : quantity;
 	quantity *= 2; /* Each characteristic consumes 2 handles */
 	quantity += 1; /* Each service will consume 1 handle */
 
@@ -214,7 +215,7 @@ static ble::GattHandle_t addService(const ble::Uuid128 & uuid, size_t uuidSize, 
 				uuidType,
 				(Service_UUID_t *) uuid.data(),
 				PRIMARY_SERVICE,
-				quantity,
+				(uint8_t)quantity,
 				&handle
 				);
 
@@ -265,27 +266,27 @@ void EffectiveBLE::advertise()
 
 
 	/* advInternal, convert mS into multiples of 625uS */
-	auto advInterval = pimpl->advInterval;
+	uint32_t advInterval = pimpl->advInterval;
 	advInterval = ( advInterval * 1000 ) / 625;
 	advInterval = advInterval < ADV_INTERVAL_LOWEST_CONN ? ADV_INTERVAL_LOWEST_CONN : advInterval;
 	advInterval = advInterval > ADV_INTERVAL_HIGHEST ? ADV_INTERVAL_HIGHEST : advInterval;
 
-	advParams.advIntervalMin = advInterval;
+	advParams.advIntervalMin = (uint16_t)advInterval;
 
 	// To minimize interference from WiFi, set a max interval
-	advParams.advIntervalMax = advInterval * 1333 / 1000;
+	advParams.advIntervalMax = (uint16_t)(advInterval * 1333 / 1000);
 	advParams.advIntervalMax = advParams.advIntervalMax > ADV_INTERVAL_HIGHEST ?
 			ADV_INTERVAL_HIGHEST : advParams.advIntervalMax;
 
 
 	/* Local name is limited to 9-bytes (without null), truncate as required*/
 	auto advName = pimpl->advName;
-	size_t length = safe_strlen(advName, 10);
+	uint8_t length = (uint8_t)safe_strlen(advName, 10);
 	if (length < 10)
 	{
 		advParams.localName[0] = AD_TYPE_COMPLETE_LOCAL_NAME;
 		std::memcpy(&advParams.localName[1], advName, length);
-		advParams.nameLength = length + 1;
+		advParams.nameLength = (uint8_t)(length + 1);
 	}
 	else
 	{
@@ -378,7 +379,7 @@ void ble::SendNotification(GattHandle_t charHandle, uint8_t *payload, size_t siz
 								entry->serviceHandle,
 	                            charHandle,
 	                             0, /* charValOffset */
-	                            size, /* charValueLen */
+	                            entry->dataSize, /* charValueLen */
 	                            payload);
 	}
 
@@ -815,20 +816,20 @@ static SVCCTL_EvtAckStatus_t EventHandler(void *Event)
 
 extern "C" void hci_notify_asynch_evt(void* pdata)
 {
-  UTIL_SEQ_SetTask(1 << CFG_TASK_HCI_ASYNCH_EVT_ID, CFG_SCH_PRIO_0);
-  return;
+	pdata = pdata;
+	UTIL_SEQ_SetTask(1 << CFG_TASK_HCI_ASYNCH_EVT_ID, CFG_SCH_PRIO_0);
 }
 
 extern "C" void hci_cmd_resp_release(uint32_t flag)
 {
-  UTIL_SEQ_SetEvt(1 << CFG_IDLEEVT_HCI_CMD_EVT_RSP_ID);
-  return;
+	flag = flag;
+	UTIL_SEQ_SetEvt(1 << CFG_IDLEEVT_HCI_CMD_EVT_RSP_ID);
 }
 
 extern "C" void hci_cmd_resp_wait(uint32_t timeout)
 {
-  UTIL_SEQ_WaitEvt(1 << CFG_IDLEEVT_HCI_CMD_EVT_RSP_ID);
-  return;
+	timeout = timeout;
+	UTIL_SEQ_WaitEvt(1 << CFG_IDLEEVT_HCI_CMD_EVT_RSP_ID);
 }
 
 
@@ -1040,9 +1041,15 @@ extern "C" SVCCTL_UserEvtFlowStatus_t SVCCTL_App_Notification(void *pckt)
 
           break;
 
+        default:
+        	break;
+
       }
 
       break; /* HCI_EVT_LE_META_EVENT */
+
+      default:
+    	  break;
     }
   return (SVCCTL_UserEvtFlowEnable);
 }
@@ -1162,13 +1169,13 @@ static void Ble_Hci_Gap_Gatt_Init(void){
 
   if (role > 0)
   {
-    const char *name = "STM32WB";
+    const uint8_t name[] = "STM32WB";
 
     aci_gap_init(role, 0,
                  APPBLE_GAP_DEVICE_NAME_LENGTH,
                  &gap_service_handle, &gap_dev_name_char_handle, &gap_appearance_char_handle);
 
-    if (aci_gatt_update_char_value(gap_service_handle, gap_dev_name_char_handle, 0, strlen(name), (uint8_t *) name))
+    if (aci_gatt_update_char_value(gap_service_handle, gap_dev_name_char_handle, 0, sizeof(name) - 1, (uint8_t *)name))
     {
       BLE_DBG_SVCCTL_MSG("Device Name aci_gatt_update_char_value failed.\n");
     }

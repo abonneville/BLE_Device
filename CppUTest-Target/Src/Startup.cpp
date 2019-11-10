@@ -81,6 +81,7 @@ public:
 
 	void postTestAction(UtestShell& test, TestResult& result)
 	{
+		test = test;
 		/* Runs after each and every test case */
 
 
@@ -174,9 +175,9 @@ static void PrepNewlib( void )
  */
 extern "C" int _write(int fd, char *ptr, int len)
 {
-	int DataIdx;
+	fd = fd;
 
-	for (DataIdx = 0; DataIdx < len; DataIdx++)
+	for (int DataIdx = 0; DataIdx < len; DataIdx++)
 	{
 		ITM_SendChar(*ptr++);
 	}

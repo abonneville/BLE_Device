@@ -55,14 +55,15 @@ ble::Uuid128 ButCharUuid {0x00,0x00,0xfe,0x42,0x8e,0x22,0x45,0x41,0x9d,0x4c,0x21
 static void LedCallback(uint16_t fromClient);
 
 /* Define control/status variables */
-auto button ( bleDevice.addChar<uint16_t>(0xBB, ServiceUuid, ButCharUuid) );
-auto led ( bleDevice.addChar<uint16_t>(0xEE, ServiceUuid,  LedCharUuid, LedCallback) );
+auto button ( bleDevice.addChar<uint16_t>(0, ServiceUuid, ButCharUuid) );
+auto led ( bleDevice.addChar<uint16_t>(0, ServiceUuid,  LedCharUuid, LedCallback) );
 
 static void LedCallback(uint16_t fromClient)
 {
-	  HAL_GPIO_TogglePin(GPIOB, LED_BLUE_Pin);
+	fromClient = fromClient;
 
-	  button = fromClient + 1;
+	HAL_GPIO_TogglePin(GPIOB, LED_BLUE_Pin);
+	button = (uint16_t)(button + 1);
 }
 
 
@@ -107,9 +108,9 @@ extern "C" void StartApplication()
  */
 extern "C" int _write(int fd, char *ptr, int len)
 {
-	int DataIdx;
+	fd = fd;
 
-	for (DataIdx = 0; DataIdx < len; DataIdx++)
+	for (int DataIdx = 0; DataIdx < len; DataIdx++)
 	{
 		ITM_SendChar(*ptr++);
 	}
