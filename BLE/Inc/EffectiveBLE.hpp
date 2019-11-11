@@ -45,62 +45,54 @@ public:
 	void end();
 	void advertise();
 
-	template< typename T, typename US = ble::Uuid16, typename UC = ble::Uuid16>
+	template< typename T >
 	Characteristic<T> addChar(
 			T v,
-			const US service,
-			const UC characteristic,
+			const ble::Uuid128 & service,
+			const ble::Uuid128 & characteristic,
 			void(*aCallback)(T) = nullptr)
 	{
 
-		if ( count < gattHandles.size() )
-		{
-			gattHandles[count].srvID = (ble::Uuid128)service;
-			gattHandles[count].srvIDSize = sizeof(service);
-			gattHandles[count].charID = (ble::Uuid128)characteristic;
-			gattHandles[count].charIDSize = sizeof(characteristic);
-			gattHandles[count].dataSize = sizeof(v);
-			count++;
-			return {v, &gattHandles[count - 1], aCallback};
-		}
-
-		/* Invalid request, default initialize */
-		return {};
+		auto gattHandle = addObject(service, sizeof(service), characteristic, sizeof(characteristic), sizeof(T) );
+		if (gattHandle)  return {v, gattHandle, aCallback};
+		else return {};
 	}
-#if 0
-	template< typename T, typename UC = ble::Uuid16>
-	Characteristic<T, Uuid16, UC> addChar(
+
+	template< typename T >
+	Characteristic<T> addChar(
 			T v,
 			uint16_t service,
-			const UC characteristic,
-			void(*aCallback)(T) = nullptr,
-			bool updateNow = true)
+			const ble::Uuid128 & characteristic,
+			void(*aCallback)(T) = nullptr)
 	{
-		return {v, to_uuid16(service), characteristic, aCallback, updateNow};
+		auto gattHandle = addObject(to_uuid128(service), sizeof(service), characteristic, sizeof(characteristic), sizeof(T) );
+		if (gattHandle)  return {v, gattHandle, aCallback};
+		else return {};
 	}
 
-	template< typename T, typename US = ble::Uuid16>
-	Characteristic<T, US, Uuid16> addChar(
+	template< typename T >
+	Characteristic<T> addChar(
 			T v,
-			const US service,
+			const ble::Uuid128 & service,
 			uint16_t characteristic,
-			void(*aCallback)(T) = nullptr,
-			bool updateNow = true)
+			void(*aCallback)(T) = nullptr)
 	{
-		return {v, service, to_uuid16(characteristic), aCallback, updateNow};
+		auto gattHandle = addObject(service, sizeof(service), to_uuid128(characteristic), sizeof(characteristic), sizeof(T) );
+		if (gattHandle)  return {v, gattHandle, aCallback};
+		else return {};
 	}
 
-	template< typename T>
-	Characteristic<T, Uuid16, Uuid16> addChar(
+	template< typename T >
+	Characteristic<T> addChar(
 			T v,
 			uint16_t service,
 			uint16_t characteristic,
-			void(*aCallback)(T) = nullptr,
-			bool updateNow = true)
+			void(*aCallback)(T) = nullptr)
 	{
-		return {v, to_uuid16(service), to_uuid16(characteristic), aCallback, updateNow};
+		auto gattHandle = addObject(to_uuid128(service), sizeof(service), to_uuid128(characteristic), sizeof(characteristic), sizeof(T) );
+		if (gattHandle)  return {v, gattHandle, aCallback};
+		else return {};
 	}
-#endif
 
 	std::array<GattHandler_t, 10> gattHandles;
 	std::size_t count;
@@ -110,6 +102,15 @@ private:
 	std::unique_ptr<impl> pimpl;
 
 	void init(void);
+
+	GattHandler_t * addObject(
+			const Uuid128 & service,
+			size_t serviceSize,
+			const Uuid128 & characteristic,
+			size_t characteristicSize,
+			uint8_t dataSize );
+
+
 };
 
 

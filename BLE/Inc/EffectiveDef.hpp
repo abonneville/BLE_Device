@@ -29,19 +29,18 @@ namespace ble
 /**
  * Universally Unique IDentification (UUID)
  */
-using Uuid16 = std::uint16_t;
+using Uuid16 = uint16_t;
 using Uuid128 = std::array<uint8_t, 16>;
 
-#if 0
-constexpr Uuid16 to_uuid16(const uint16_t value)
+
+constexpr Uuid128 to_uuid128(const Uuid16 value)
 {
 	return {(uint8_t)(value >> 8), (uint8_t)value};
 }
-#endif
 
 
 /* GATT identifier used to access a specific database entry */
-using GattHandle_t = std::uint16_t;
+using GattHandle_t = uint16_t;
 
 
 void SendNotification(GattHandle_t charHandle, uint8_t *payload, size_t size );

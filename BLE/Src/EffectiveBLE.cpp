@@ -144,6 +144,30 @@ void EffectiveBLE::begin()
 }
 
 
+
+GattHandler_t * EffectiveBLE::addObject(
+		const Uuid128 & service,
+		size_t serviceSize,
+		const Uuid128 & characteristic,
+		size_t characteristicSize,
+		uint8_t dataSize )
+{
+
+	if ( count < gattHandles.size() )
+	{
+		gattHandles[count].srvID = service;
+		gattHandles[count].srvIDSize = serviceSize;
+		gattHandles[count].charID = characteristic;
+		gattHandles[count].charIDSize = characteristicSize;
+		gattHandles[count].dataSize = dataSize;
+		count++;
+		return &gattHandles[count - 1];
+	}
+
+	return nullptr;
+}
+
+
 /**
  * @brief Populate GATT database with service and characteristic entries.
  */
@@ -213,7 +237,7 @@ static ble::GattHandle_t addService(const ble::Uuid128 & uuid, size_t uuidSize, 
 	 * LSB (little endian) be sent first. Make a copy (protect original) and load into GATT database.
 	 */
 	ble::Uuid128 uuidReversed;
-	std::reverse_copy( uuid.cbegin(), uuid.cend(), uuidReversed.begin() );
+	std::reverse_copy( uuid.cbegin(), uuid.cbegin() + uuidSize, uuidReversed.begin() );
 
 	uint8_t uuidType = (uuidSize == 2) ? UUID_TYPE_16 : UUID_TYPE_128;
 
@@ -246,7 +270,7 @@ static ble::GattHandle_t addCharacteristic(const ble::Uuid128 & uuid, size_t uui
 	 * LSB (little endian) be sent first. Make a copy (protect original) and load into GATT database.
 	 */
 	ble::Uuid128 uuidReversed;
-	std::reverse_copy( uuid.cbegin(), uuid.cend(), uuidReversed.begin() );
+	std::reverse_copy( uuid.cbegin(), uuid.cbegin() + uuidSize, uuidReversed.begin() );
 
 	uint8_t uuidType = (uuidSize == 2) ? UUID_TYPE_16 : UUID_TYPE_128;
 
