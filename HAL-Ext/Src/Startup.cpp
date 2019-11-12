@@ -26,13 +26,38 @@ extern "C" {
 #include "main.h"
 #include "stm32_seq.h"
 #include "core_cm4.h"
+#include "uuid.h"
 }
 #include <stdio.h>
 #include <errno.h>
 
 #include "EffectiveBLE.hpp"
 
+
+/**
+ * This server demo implements both the SIG for a heart rate sensor, and a custom
+ * service/characteristic profile.
+ * 1. Define application "variable" to contain the sensor information
+ * 2. Define the service/characteristic UUIDs to use
+ * 3. Implement callback if desired
+ * 4. Launch the BLE interface
+ * 5. Connect using external client, such as LightBlue
+ */
+
+
 /* Typedef -----------------------------------------------------------*/
+
+/* Note: behind the interface layer, all data transfers are handled as a byte array,
+ * LSB first. If/when the compiler adds undesirable padding, apply __attribute__((packed))
+ * to remove the extra padding.
+ */
+typedef struct
+{
+	uint16_t systolic;
+	uint16_t diastolic;
+	uint16_t mean;
+} BloodPressure_t;
+
 
 /* Define ------------------------------------------------------------*/
 
@@ -48,16 +73,40 @@ ble::Uuid128 ServiceUuid {0x00,0x00,0xfe,0x40,0xcc,0x7a,0x48,0x2a,0x98,0x4a,0x7f
 ble::Uuid128 LedCharUuid {0x00,0x00,0xfe,0x41,0x8e,0x22,0x45,0x41,0x9d,0x4c,0x21,0xed,0xae,0x82,0xed,0x19};
 ble::Uuid128 ButCharUuid {0x00,0x00,0xfe,0x42,0x8e,0x22,0x45,0x41,0x9d,0x4c,0x21,0xed,0xae,0x82,0xed,0x19};
 
+
 /* Function prototypes -----------------------------------------------*/
 
 /* External functions ------------------------------------------------*/
-
+static void BloodCallback(BloodPressure_t bp);
 static void LedCallback(uint16_t fromClient);
 
 /* Define control/status variables */
 auto button ( bleDevice.addChar<uint16_t>(0, ServiceUuid, ButCharUuid) );
 auto led ( bleDevice.addChar<uint16_t>(0, ServiceUuid,  LedCharUuid, LedCallback) );
 
+auto bloodPressure ( bleDevice.addChar<BloodPressure_t>(
+		{},
+		BLOOD_PRESSURE_SERVICE_UUID,
+		BLOOD_PRESSURE_MEASUREMENT_CHAR_UUID,
+		BloodCallback) );
+
+/**
+ * @brief Callback invoked when client has sent new value to server
+ */
+static void BloodCallback(BloodPressure_t fromClient)
+{
+	/* Update shadow copy */
+	fromClient.systolic = (uint16_t)(fromClient.systolic + 1);
+	fromClient.diastolic = (uint16_t)(fromClient.diastolic + 2);
+	fromClient.mean = (uint16_t)(fromClient.mean + 3);
+
+	/* Update network/database copy */
+	bloodPressure = fromClient;
+}
+
+/**
+ * @brief Callback invoked when client has sent new value to server
+ */
 static void LedCallback(uint16_t fromClient)
 {
 	fromClient = fromClient;
@@ -67,14 +116,14 @@ static void LedCallback(uint16_t fromClient)
 }
 
 
-
+/**
+ * After boot and launch of BLE interface, sit in super loop and process pending tasks
+ */
 extern "C" void StartApplication()
 {
 
-
 	/* Initiate BLE */
 	bleDevice.begin();
-
 
 	while(1)
 	{
@@ -82,15 +131,6 @@ extern "C" void StartApplication()
 		 * Run all pending tasks
 		 */
 	    UTIL_SEQ_Run( UTIL_SEQ_DEFAULT );
-
-	    /*
-		  HAL_GPIO_TogglePin(GPIOB, LED_BLUE_Pin);
-		  HAL_Delay(200);
-		  HAL_GPIO_TogglePin(GPIOB, LED_GREEN_Pin);
-		  HAL_Delay(200);
-		  HAL_GPIO_TogglePin(GPIOB, LED_RED_Pin);
-		  HAL_Delay(200);
-		  */
 	}
 }
 
