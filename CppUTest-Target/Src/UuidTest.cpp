@@ -36,9 +36,10 @@
 /* External functions ------------------------------------------------*/
 
 
-TEST_GROUP(Uuid16) {};
+//TEST_GROUP(Uuid16) {};
 TEST_GROUP(Uuid128) {};
 
+#if 0
 TEST(Uuid16, uint16_t)
 {
 	uint16_t id1 = 0xFF33;
@@ -103,6 +104,7 @@ TEST(Uuid16, otherOperators)
 	/* Verify access to raw pointer */
 	CHECK( uuid1.data() == &uuid1[0] );
 }
+#endif
 
 
 TEST(Uuid128, byteArray)
