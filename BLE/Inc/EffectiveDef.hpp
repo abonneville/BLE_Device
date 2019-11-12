@@ -97,7 +97,7 @@ public:
 
 	/* Default initialize for empty object*/
 	Characteristic() :
-		value(0),
+		value(),
 		size(sizeof(T)),
 		gattHandle(0),
 		callback(nullptr) {}
