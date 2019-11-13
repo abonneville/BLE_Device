@@ -36,75 +36,42 @@
 /* External functions ------------------------------------------------*/
 
 
-//TEST_GROUP(Uuid16) {};
+TEST_GROUP(Uuid16) {};
 TEST_GROUP(Uuid128) {};
 
-#if 0
 TEST(Uuid16, uint16_t)
 {
 	uint16_t id1 = 0xFF33;
-	ble::Uuid16 uuid1 ( ble::to_uuid16(id1) );
-	ble::Uuid16 uuid2 {0xFF, 0x33};
-	ble::Uuid16 uuid3 ( ble::to_uuid16(0) );
+	ble::Uuid128 uuid1 ( ble::to_uuid128(id1) );
+	ble::Uuid128 uuid2 { ble::to_uuid128(0xFF33) };
+	ble::Uuid128 uuid3 ( ble::to_uuid128(0) );
 
 	CHECK( uuid1 == uuid2 );
 	CHECK( uuid1 != uuid3 );
 
-	uuid3 = ble::to_uuid16(9834);
+	uuid3 = ble::to_uuid128(9834);
 	CHECK( uuid3[0] == 0x26 );
 	CHECK( uuid3[1] == 0x6A );
-	uuid3 = ble::to_uuid16(76);
+
+	uuid3[15] = 99;
+	uuid3 = ble::to_uuid128(76);
 	CHECK( uuid3[0] == 0 );
 	CHECK( uuid3[1] == 76 );
+	CHECK( uuid3[2] == 0 );
+	CHECK( uuid3[3] == 0 );
+	CHECK( uuid3[4] == 0 );
+	CHECK( uuid3[5] == 0 );
+	CHECK( uuid3[6] == 0 );
+	CHECK( uuid3[7] == 0 );
+	CHECK( uuid3[8] == 0 );
+	CHECK( uuid3[9] == 0 );
+	CHECK( uuid3[10] == 0 );
+	CHECK( uuid3[11] == 0 );
+	CHECK( uuid3[12] == 0 );
+	CHECK( uuid3[13] == 0 );
+	CHECK( uuid3[14] == 0 );
+	CHECK( uuid3[15] == 0 );
 }
-
-
-TEST(Uuid16, byteArray)
-{
-	const ble::Uuid16 id1 { 127, 0};
-	ble::Uuid16 uuid1 {id1};
-	ble::Uuid16 uuid2 (id1);
-	ble::Uuid16 uuid3 ( ble::to_uuid16(0) );
-	ble::Uuid16 uuid4 {127, 0};
-
-	CHECK( uuid1 == uuid2 );
-	CHECK( uuid1 != uuid3 );
-	CHECK( uuid1 == uuid4 );
-
-	uuid4 = {234, 76};
-	CHECK( uuid4[0] == 234 );
-	CHECK( uuid4[1] == 76 );
-
-	uuid4[1] = 44;
-	CHECK( uuid4[0] == 234 );
-	CHECK( uuid4[1] == 44 );
-
-	uuid4 = {88};
-	CHECK( uuid4[0] == 88 );
-	CHECK( uuid4[1] == 0 );
-}
-
-
-TEST(Uuid16, otherOperators)
-{
-
-	/* size() */
-	ble::Uuid16 uuid1;
-	CHECK( 2 == uuid1.size() );
-
-	/* copy() */
-	uint8_t id1[2] {};
-	uuid1 = {0x7D, 0x63};
-
-	//uuid1.copy( id1 );
-	std::copy(uuid1.begin(), uuid1.end(), id1);
-	CHECK( 0x7D == id1[0] );
-	CHECK( 0x63 == id1[1] );
-
-	/* Verify access to raw pointer */
-	CHECK( uuid1.data() == &uuid1[0] );
-}
-#endif
 
 
 TEST(Uuid128, byteArray)
