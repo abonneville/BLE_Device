@@ -43,9 +43,6 @@ constexpr Uuid128 to_uuid128(const Uuid16 value)
 using GattHandle_t = uint16_t;
 
 
-void SendNotification(GattHandle_t charHandle, uint8_t *payload, size_t size );
-
-
 /**
  * @brief Non-template base class that defines an interface to member functions, which will
  * be be overridden by template subclasses.
@@ -54,14 +51,13 @@ class CharBase
 {
 public:
 	virtual void setValue( const std::uint8_t *newValue ) = 0;
-	virtual void setGattHandle(GattHandle_t gh) = 0;
+	virtual void setGattHandle(GattHandle_t gh, void(*ug)(GattHandle_t , uint8_t *, size_t ) ) = 0;
 };
 
 /**
  * GATT object handler, used to manage each user defined GATT characteristic object.
  */
 struct GattHandler_t {
-	//TODO reference of value
 	Uuid128 srvID;
 	Uuid128 charID;
 
@@ -88,8 +84,8 @@ class Characteristic : public CharBase
 public:
 	Characteristic(T v, GattHandler_t *gattHandler, void(*aCallback)(T)) :
 		value(v),
-		size(sizeof(T)),
 		gattHandle(0),
+		updateGATT(nullptr),
 		callback(aCallback)
 		{
 			gattHandler->userObject = this;
@@ -98,13 +94,12 @@ public:
 	/* Default initialize for empty object*/
 	Characteristic() :
 		value(),
-		size(sizeof(T)),
 		gattHandle(0),
+		updateGATT(nullptr),
 		callback(nullptr) {}
 
 	~Characteristic() {}
 
-//	Characteristic(const Characteristic &) = delete;
 	Characteristic& operator=(const Characteristic &) = delete;
 
 	/*
@@ -113,25 +108,9 @@ public:
 	T operator =( T v)
 	{
 		value = v;
-		updateClient();
+		update();
 		return value;
 	}
-
-#if 0
-	T operator +=( T v)
-	{
-		value += v;
-		updateClient();
-		return value;
-	}
-
-	T operator -=( T v)
-	{
-		value -= v;
-		updateClient();
-		return value;
-	}
-#endif
 
 	operator T() const
 	{
@@ -158,27 +137,30 @@ public:
 	 * @brief Asserted when user variable is updated by application, and needs to notify
 	 * 		GATT interface of new value.
 	 */
-	void updateClient() {
-		if (gattHandle)
+	void update() {
+		if (updateGATT)
 		{
-			SendNotification(gattHandle, (uint8_t *)&value, sizeof(T) );
+			updateGATT(gattHandle, (uint8_t *)&value, sizeof(T) );
 		}
 	}
 
 	/* @brief GATT handles are not known during instantiation. However, the GATT handle
 	 * 		must be set when the application needs to update/notify client.
-	 * @param gh sets internal copy of gatt handle
+	 * @param handle sets internal copy of gatt handle
+	 * @param update is the method to be called when updating the gatt database value
 	 */
-	virtual void setGattHandle(GattHandle_t gh)
+	virtual void setGattHandle(GattHandle_t handle, void(*update)(GattHandle_t , uint8_t *, size_t ) )
 	{
-		gattHandle = gh;
+		gattHandle = handle;
+		updateGATT = update;
 	}
 
 private:
 	T value;
-	size_t size;
 
 	GattHandle_t gattHandle;
+	void(*updateGATT)(GattHandle_t , uint8_t *, size_t );
+
 	void(*callback)(T);
 };
 

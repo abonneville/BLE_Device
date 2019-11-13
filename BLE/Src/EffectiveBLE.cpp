@@ -95,6 +95,8 @@ static void Adv_Request( void );
 static SVCCTL_EvtAckStatus_t EventHandler(void *Event);
 static ble::GattHandle_t addService(const ble::Uuid128 & uuid, size_t uuidSize, size_t quantity);
 static ble::GattHandle_t addCharacteristic(const ble::Uuid128 & uuid, size_t uuidSize, uint16_t dataSize, ble::GattHandle_t serviceHandle);
+static void SendNotification(GattHandle_t charHandle, uint8_t *payload, size_t size );
+
 
 /* External functions ------------------------------------------------*/
 
@@ -206,7 +208,7 @@ void EffectiveBLE::init(void)
 				if (gh.userObject)
 				{
 					/* Assign handle to user object to facilitate client notification. */
-					gh.userObject->setGattHandle(gh.charHandle);
+					gh.userObject->setGattHandle(gh.charHandle, SendNotification);
 				}
 			}
 		}
@@ -397,7 +399,7 @@ static void Adv_Request( void )
  * @param buffer is the data to be sent
  * @param size is the amount of data to be sent
  */
-void ble::SendNotification(GattHandle_t charHandle, uint8_t *payload, size_t size )
+static void SendNotification(GattHandle_t charHandle, uint8_t *payload, size_t size )
 {
 	tBleStatus result = !BLE_STATUS_SUCCESS;
 
