@@ -50,6 +50,7 @@ using GattHandle_t = uint16_t;
 class CharBase
 {
 public:
+	virtual ~CharBase() {} /* Force derived class to manage object destruction */
 	virtual void setValue( const std::uint8_t *newValue ) = 0;
 	virtual void setGattHandle(GattHandle_t gh, void(*ug)(GattHandle_t , uint8_t *, size_t ) ) = 0;
 };
