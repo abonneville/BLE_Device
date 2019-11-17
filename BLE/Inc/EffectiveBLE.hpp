@@ -43,7 +43,6 @@ public:
 
 	void begin();
 	void end();
-	void advertise();
 
 	template< typename T >
 	Characteristic<T> addChar(
@@ -94,14 +93,9 @@ public:
 		else return {};
 	}
 
-	std::array<GattHandler_t, 10> gattHandles;
-	std::size_t count;
-
 private:
 	class impl;
 	std::unique_ptr<impl> pimpl;
-
-	void init(void);
 
 	GattHandler_t * addObject(
 			const Uuid128 & service,

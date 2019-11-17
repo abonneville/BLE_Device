@@ -67,7 +67,9 @@ typedef struct
 /* Variables ---------------------------------------------------------*/
 static bool hasInitialized = false;
 static Adv_t advParams {};
-static EffectiveBLE * friendObject = nullptr;
+static std::array<GattHandler_t, 10> gattHandles {};
+static std::size_t count {};
+
 
 
 /**
@@ -96,6 +98,11 @@ static SVCCTL_EvtAckStatus_t EventHandler(void *Event);
 static ble::GattHandle_t addService(const ble::Uuid128 & uuid, size_t uuidSize, size_t quantity);
 static ble::GattHandle_t addCharacteristic(const ble::Uuid128 & uuid, size_t uuidSize, uint16_t dataSize, ble::GattHandle_t serviceHandle);
 static void SendNotification(GattHandle_t charHandle, uint8_t *payload, size_t size );
+static void init(void);
+
+
+
+
 
 
 /* External functions ------------------------------------------------*/
@@ -104,11 +111,60 @@ static void SendNotification(GattHandle_t charHandle, uint8_t *payload, size_t s
 
 class EffectiveBLE::impl
 {
-	friend SVCCTL_EvtAckStatus_t EventHandler(void *Event);
 public:
 	impl(const char * name, uint16_t interval ) :
 		advName(name),
 		advInterval(interval) {};
+
+
+	/**
+	 * @brief Setup the ability to advertise device capability
+	 * @param advName local name to advertise with
+	 * @param advInterval advertising interval between packets, in mS
+	 */
+	void advertise()
+	{
+
+		// TODO add check to verify connection not already established
+
+
+		/* advInternal, convert mS into multiples of 625uS */
+		uint32_t advInterval = this->advInterval;
+		advInterval = ( advInterval * 1000 ) / 625;
+		advInterval = advInterval < ADV_INTERVAL_LOWEST_CONN ? ADV_INTERVAL_LOWEST_CONN : advInterval;
+		advInterval = advInterval > ADV_INTERVAL_HIGHEST ? ADV_INTERVAL_HIGHEST : advInterval;
+
+		advParams.advIntervalMin = (uint16_t)advInterval;
+
+		// To minimize interference from WiFi, set a max interval
+		advParams.advIntervalMax = (uint16_t)(advInterval * 1333 / 1000);
+		advParams.advIntervalMax = advParams.advIntervalMax > ADV_INTERVAL_HIGHEST ?
+				ADV_INTERVAL_HIGHEST : advParams.advIntervalMax;
+
+
+		/* Local name is limited to 9-bytes (without null), truncate as required*/
+		auto advName = this->advName;
+		uint8_t length = (uint8_t)safe_strlen(advName, 10);
+		if (length < 10)
+		{
+			advParams.localName[0] = AD_TYPE_COMPLETE_LOCAL_NAME;
+			std::memcpy(&advParams.localName[1], advName, length);
+			advParams.nameLength = (uint8_t)(length + 1);
+		}
+		else
+		{
+			advParams.localName[0] = AD_TYPE_SHORTENED_LOCAL_NAME;
+			std::memcpy(&advParams.localName[1], advName, 9);
+			advParams.nameLength = 9 + 1;
+		}
+
+		/**
+		* Place advertising task in pending state, ready to run
+		*/
+		UTIL_SEQ_RegTask( 1<<CFG_TASK_START_ADV_ID, UTIL_SEQ_RFU, Adv_Request);
+		UTIL_SEQ_SetTask(1 << CFG_TASK_START_ADV_ID, CFG_SCH_PRIO_0);
+	}
+
 
 	const char * advName;
 	uint16_t advInterval;
@@ -119,10 +175,8 @@ public:
  * @brief Constructor
  */
 EffectiveBLE::EffectiveBLE(const char * name, uint16_t interval) :
-		gattHandles {},
-		count (0),
 		pimpl{ std::make_unique<impl>(name, interval) }
-		{ friendObject = this; }
+		{}
 
 EffectiveBLE::~EffectiveBLE()
 {}
@@ -142,11 +196,19 @@ void EffectiveBLE::begin()
 
 	init();
 
-	advertise();
+	pimpl->advertise();
 }
 
 
-
+/**
+ * @brief Insert the requested GATT object into a central lookup table
+ * @param service is the service UUID that the characteristic belongs to
+ * @param serviceSize is how many bytes long the service UUID is
+ * @param characteristic is the characteristic UUID for this specific object
+ * @param characterisitcSize is how many bytes long the characteristic UUID is
+ * @param dataSize is how many bytes long the data/field value is for this specific characteristic
+ * @retval pointer to this objects entry in the GATT lookup table, read/writable.
+ */
 GattHandler_t * EffectiveBLE::addObject(
 		const Uuid128 & service,
 		size_t serviceSize,
@@ -173,7 +235,7 @@ GattHandler_t * EffectiveBLE::addObject(
 /**
  * @brief Populate GATT database with service and characteristic entries.
  */
-void EffectiveBLE::init(void)
+static void init(void)
 {
 
 	SVCCTL_RegisterSvcHandler(EventHandler);
@@ -208,7 +270,7 @@ void EffectiveBLE::init(void)
 				if (gh.userObject)
 				{
 					/* Assign handle to user object to facilitate client notification. */
-					gh.userObject->setGattHandle(gh.charHandle, SendNotification);
+					gh.userObject->setGattHandle(gh.charHandle, SendNotification );
 				}
 			}
 		}
@@ -231,6 +293,7 @@ static ble::GattHandle_t addService(const ble::Uuid128 & uuid, size_t uuidSize, 
 	tBleStatus status = !BLE_STATUS_SUCCESS;
 	ble::GattHandle_t handle = 0;
 
+	/* Convert characteristic quantity into how many handles need to be reserved */
 	quantity = ( quantity > 127 ) ? 0 : quantity;
 	quantity *= 2; /* Each characteristic consumes 2 handles */
 	quantity += 1; /* Each service will consume 1 handle */
@@ -291,54 +354,6 @@ static ble::GattHandle_t addCharacteristic(const ble::Uuid128 & uuid, size_t uui
 	return (status == BLE_STATUS_SUCCESS ? handle : 0);
 }
 
-
-/**
- * @brief Setup the ability to advertise device capability
- * @param advName local name to advertise with
- * @param advInterval advertising interval between packets, in mS
- */
-void EffectiveBLE::advertise()
-{
-
-	// TODO add check to verify connection not already established
-
-
-	/* advInternal, convert mS into multiples of 625uS */
-	uint32_t advInterval = pimpl->advInterval;
-	advInterval = ( advInterval * 1000 ) / 625;
-	advInterval = advInterval < ADV_INTERVAL_LOWEST_CONN ? ADV_INTERVAL_LOWEST_CONN : advInterval;
-	advInterval = advInterval > ADV_INTERVAL_HIGHEST ? ADV_INTERVAL_HIGHEST : advInterval;
-
-	advParams.advIntervalMin = (uint16_t)advInterval;
-
-	// To minimize interference from WiFi, set a max interval
-	advParams.advIntervalMax = (uint16_t)(advInterval * 1333 / 1000);
-	advParams.advIntervalMax = advParams.advIntervalMax > ADV_INTERVAL_HIGHEST ?
-			ADV_INTERVAL_HIGHEST : advParams.advIntervalMax;
-
-
-	/* Local name is limited to 9-bytes (without null), truncate as required*/
-	auto advName = pimpl->advName;
-	uint8_t length = (uint8_t)safe_strlen(advName, 10);
-	if (length < 10)
-	{
-		advParams.localName[0] = AD_TYPE_COMPLETE_LOCAL_NAME;
-		std::memcpy(&advParams.localName[1], advName, length);
-		advParams.nameLength = (uint8_t)(length + 1);
-	}
-	else
-	{
-		advParams.localName[0] = AD_TYPE_SHORTENED_LOCAL_NAME;
-		std::memcpy(&advParams.localName[1], advName, 9);
-		advParams.nameLength = 9 + 1;
-	}
-
-	/**
-	* Place advertising task in pending state, ready to run
-	*/
-	UTIL_SEQ_RegTask( 1<<CFG_TASK_START_ADV_ID, UTIL_SEQ_RFU, Adv_Request);
-	UTIL_SEQ_SetTask(1 << CFG_TASK_START_ADV_ID, CFG_SCH_PRIO_0);
-}
 
 /**
  * @brief determines the length of a null terminated string, up to max number of characters
@@ -403,7 +418,7 @@ static void SendNotification(GattHandle_t charHandle, uint8_t *payload, size_t s
 {
 	tBleStatus result = !BLE_STATUS_SUCCESS;
 
-	auto gh = friendObject->gattHandles;
+	auto gh = gattHandles;
 
 	/* Find matching characteristic */
 	auto entry = std::find_if(gh.begin(), gh.end(),
@@ -812,9 +827,9 @@ static SVCCTL_EvtAckStatus_t EventHandler(void *Event)
 					attribute_modified = (aci_gatt_attribute_modified_event_rp0*)blue_evt->data;
 
 					/* Locate a matching characteristic handle and set the value in memory. */
-					for (size_t index = 0; index < friendObject->count; index++ )
+					for (size_t index = 0; index < count; index++ )
 					{
-						auto & gh = friendObject->gattHandles[index];
+						auto & gh = gattHandles[index];
 						if ( gh.charHandle == ( attribute_modified->Attr_Handle - 1) )
 						{
 							if (gh.dataSize == attribute_modified->Attr_Data_Length )
